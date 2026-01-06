@@ -4,15 +4,14 @@ from datetime import datetime
 import pandas as pd
 
 # Consolidate holdings-related CSVs from validation_output/Financial_Times/04_Holdings
-# into staging under data/03_staging/holdings/<date>.
+# into staging under data/03_staging/holdings (flat, no date folder).
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
 VALIDATION_DIR = BASE_DIR / "validation_output" / "Financial_Times" / "04_Holdings"
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
-STAGING_DIR = BASE_DIR / "data" / "03_staging" / "holdings" / TODAY
+STAGING_DIR = BASE_DIR / "data" / "03_staging" / "holdings"
 STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
 

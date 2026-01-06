@@ -23,8 +23,7 @@ from src.utils.db_connector import get_db_connection
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-TIMESTAMP = datetime.now().strftime('%Y-%m-%d')
-HASHED_DIR = project_root / "data" / "04_hashed" / "dividend_history" / TIMESTAMP
+HASHED_DIR = project_root / "data" / "04_hashed" / "dividend_history"
 TARGET_TABLE = "stg_dividend_history"
 
 # ==========================================
@@ -32,9 +31,6 @@ TARGET_TABLE = "stg_dividend_history"
 # ==========================================
 
 def load_dividend_to_db(df, engine):
-    """
-    ฟังก์ชันสำหรับโหลดข้อมูลปันผลเข้า DB แบบ Append ธรรมดา (Flexible Mode)
-    """
     if df.empty:
         return 0
 

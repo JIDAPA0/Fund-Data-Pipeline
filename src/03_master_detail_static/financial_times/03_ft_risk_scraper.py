@@ -156,7 +156,7 @@ class FTRiskScraper:
         return data
 
     # =========================================================================
-    # 2. RATINGS PAGE (Logic ใหม่ กรองค่า 15.0/0.0 ทิ้ง)
+    
     # =========================================================================
     async def get_ratings_data(self, session, ticker, asset_type):
         base_url = self._get_base_url(asset_type)
@@ -180,19 +180,19 @@ class FTRiskScraper:
             # --- Morningstar ---
             ms_container = soup.find(class_=re.compile(r'morningstar-rating'))
             if ms_container:
-                # 1. ลองหา Highlighted (แม่นสุด)
+                
                 highlighted = ms_container.find('span', attrs={'data-mod-stars-highlighted': 'true'})
                 if highlighted:
                     stars = len(highlighted.find_all(class_=re.compile(r'icon--star')))
                 else:
-                    # 2. ถ้าไม่มี Highlight ให้นับดาวทั้งหมด
+                    
                     stars = len(ms_container.find_all(class_=re.compile(r'icon--star')))
                 
-                # 🛡️ VALIDATION: ค่าต้องอยู่ระหว่าง 1-5 เท่านั้น
+                
                 if stars >= 1 and stars <= 5:
                     data['morningstar_rating'] = stars
                 else:
-                    data['morningstar_rating'] = None # ถ้าเป็น 0 หรือ >5 ให้เป็น None
+                    data['morningstar_rating'] = None 
             
             # --- Lipper Leaders ---
             lipper_app = soup.find('div', attrs={'data-module-name': 'LipperRatingApp'})
@@ -302,7 +302,7 @@ class FTRiskScraper:
         # 🧹 FINAL CLEANING: Clean Rating Column (Int or None)
         if 'morningstar_rating' in df.columns:
             df['morningstar_rating'] = pd.to_numeric(df['morningstar_rating'], errors='coerce')
-            # บังคับให้เป็น Int (Int64 รองรับ NaN ได้ใน Pandas ใหม่, ถ้าเก่าใช้ float แล้วค่อย cast)
+            
             df['morningstar_rating'] = df['morningstar_rating'].astype('Int64') 
 
         use_header = not self.output_file.exists()

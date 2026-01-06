@@ -31,10 +31,8 @@ except ImportError as e:
 # 1. CONFIGURATION
 # ==========================================
 CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
-
-SOURCE_DIR = DATA_STORE_DIR / "03_staging" / "daily_nav" / CURRENT_DATE
-
-ARCHIVE_DIR = DATA_STORE_DIR / "99_archive" / "daily_nav" / CURRENT_DATE
+SOURCE_DIR = DATA_STORE_DIR / "03_staging"
+ARCHIVE_DIR = DATA_STORE_DIR / "99_archive" / "daily_nav"
 ZIP_NAME = f"daily_nav_processed_{CURRENT_DATE}.zip"
 
 # ==========================================
@@ -49,7 +47,7 @@ def archive_files():
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     zip_path = ARCHIVE_DIR / ZIP_NAME
 
-    csv_files = list(SOURCE_DIR.glob("*.csv"))
+    csv_files = list(SOURCE_DIR.glob("*daily_nav*.csv"))
     
     if not csv_files:
         print("⚠️ No CSV files found to archive.")
@@ -69,13 +67,7 @@ def archive_files():
         
         print("   ✅ Zip created successfully.")
 
-        for file_path in csv_files:
-            os.remove(file_path)
         
-        if not any(SOURCE_DIR.iterdir()):
-            SOURCE_DIR.rmdir()
-            print("   🗑️  Cleaned up source folder.")
-            
     except Exception as e:
         print(f"❌ Archiving Failed: {e}")
         return

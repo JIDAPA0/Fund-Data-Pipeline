@@ -23,7 +23,7 @@ from src.utils.browser_utils import get_random_headers
 from src.utils.db_connector import get_active_tickers
 
 logger = setup_logger("01_ft_info_slow_sure_fix")
-CONCURRENCY = 5  # 🐢 ช้าแต่ชัวร์
+CONCURRENCY = 5  
 BATCH_SIZE = 50 
 
 class FTInfoScraper:
@@ -146,7 +146,7 @@ class FTInfoScraper:
             header = soup.find(string=re.compile(r'Geographical breakdown|Asset allocation', re.IGNORECASE))
             
             if header:
-                # 🟢 FIX: เช็คก่อนว่ามี parent หรือไม่ กัน Error NoneType
+                
                 parent = header.find_parent('div')
                 if parent:
                     table = parent.find_next('table')
@@ -159,7 +159,7 @@ class FTInfoScraper:
                                 if txt and "Cash" not in txt and "Other" not in txt:
                                     return txt
         except Exception: 
-            pass # ถ้ามี error ใดๆ ในการแกะ HTML ให้ข้ามไปเลย ไม่ต้อง Crash
+            pass 
             
         return None
 

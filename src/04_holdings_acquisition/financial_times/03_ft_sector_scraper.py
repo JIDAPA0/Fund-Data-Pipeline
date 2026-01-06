@@ -82,7 +82,7 @@ class FTSectorScraper:
         self.processed_count += 1
         print(f"[{self.processed_count}/{self.total_count}] Checking: {ticker} ...", end='\r')
 
-        # ✅ FIX: แก้ชื่อไฟล์
+        
         safe_ticker = ticker.replace(':', '_').replace('/', '_')
         fname = OUTPUT_DIR / f"{safe_ticker}_{atype}_sectors.csv"
         

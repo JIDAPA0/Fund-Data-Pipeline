@@ -22,8 +22,7 @@ from src.utils.db_connector import get_db_connection
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-TIMESTAMP = datetime.now().strftime('%Y-%m-%d')
-HASHED_BASE_DIR = project_root / "data" / "04_hashed" / "price_history" / TIMESTAMP
+HASHED_BASE_DIR = project_root / "data" / "04_hashed" / "price_history"
 TARGET_TABLE = "stg_price_history"
 
 # ==========================================
@@ -31,10 +30,6 @@ TARGET_TABLE = "stg_price_history"
 # ==========================================
 
 def upsert_to_db(df, engine):
-    """
-    ฟังก์ชันสำหรับยิงข้อมูลเข้า Database แบบ Upsert 
-    โดยเช็คจาก Ticker + Date + Source และ Row_Hash
-    """
     if df.empty: return
 
     temp_table = f"temp_{TARGET_TABLE}_{int(datetime.now().timestamp())}"

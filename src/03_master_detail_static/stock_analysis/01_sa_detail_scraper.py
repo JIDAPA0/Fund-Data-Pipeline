@@ -70,19 +70,19 @@ SCREENER_URL = "https://stockanalysis.com/etf/screener/"
 # 1. INFO MAPPING (Identity & Profile)
 INFO_MAPPING = {
     "Symbol": "ticker", 
-    "Fund Name": "name",           # CSV จริงชื่อ Fund Name
+    "Fund Name": "name",           
     "ISIN Number": "isin_number", 
     "CUSIP Number": "cusip_number",
     "Issuer": "issuer", 
     "Category": "category", 
     "Index": "index_benchmark",
-    "Inception": "inception_date", # CSV จริงชื่อ Inception
+    "Inception": "inception_date", 
     "Exchange": "exchange", 
     "Region": "region", 
     "Country": "country",
     "Leverage": "leverage", 
     "Options": "options", 
-    "Shares": "shares_out"         # CSV จริงชื่อ Shares
+    "Shares": "shares_out"         
 }
 INFO_COLUMNS = [
     'ticker', 'asset_type', 'source', 'name', 
@@ -93,9 +93,9 @@ INFO_COLUMNS = [
 
 # 2. FEES MAPPING (Fees & Operations)
 FEES_MAPPING = {
-    "Exp. Ratio": "expense_ratio", # CSV จริงชื่อ Exp. Ratio
+    "Exp. Ratio": "expense_ratio", 
     "Assets": "assets_aum",
-    "Holdings": "holdings_count"   # CSV จริงชื่อ Holdings
+    "Holdings": "holdings_count"   
 }
 FEES_COLUMNS = [
     'ticker', 'asset_type', 'source', 
@@ -105,10 +105,10 @@ FEES_COLUMNS = [
 
 # 3. RISK MAPPING (Risk & Technicals)
 RISK_MAPPING = {
-    "Sharpe": "sharpe_ratio_5y",   # CSV จริงชื่อ Sharpe
+    "Sharpe": "sharpe_ratio_5y",   
     "Beta (5Y)": "beta_5y",
-    "RSI": "rsi_daily",            # CSV จริงชื่อ RSI
-    "200 MA": "moving_avg_200"     # CSV จริงชื่อ 200 MA
+    "RSI": "rsi_daily",            
+    "200 MA": "moving_avg_200"     
 }
 RISK_COLUMNS = [
     'ticker', 'asset_type', 'source',
@@ -117,15 +117,15 @@ RISK_COLUMNS = [
 
 # 4. POLICY MAPPING (Policy & Performance)
 POLICY_MAPPING = {
-    "Div. Yield": "div_yield",           # CSV จริงชื่อ Div. Yield
-    "Div. Growth": "div_growth_1y",      # CSV จริงชื่อ Div. Growth
+    "Div. Yield": "div_yield",           
+    "Div. Growth": "div_growth_1y",      
     "Div. Growth 3Y": "div_growth_3y",
     "Div. Growth 5Y": "div_growth_5y",
     "Div. Growth 10Y": "div_growth_10y",
-    "Years": "div_consecutive_years",    # CSV จริงชื่อ Years
+    "Years": "div_consecutive_years",    
     "Payout Ratio": "payout_ratio",
-    "Return YTD": "total_return_ytd",    # ใช้ Return YTD แทน Change YTD ตามความเหมาะสมของชื่อ DB (Total Return)
-    "Return 1Y": "total_return_1y",      # ใช้ Return 1Y
+    "Return YTD": "total_return_ytd",    
+    "Return 1Y": "total_return_1y",      
     "PE Ratio": "pe_ratio"
 }
 POLICY_COLUMNS = [
@@ -134,7 +134,7 @@ POLICY_COLUMNS = [
     'div_consecutive_years', 'payout_ratio', 'total_return_ytd', 'total_return_1y', 'pe_ratio'
 ]
 
-# รวม Mapping ทั้งหมด
+
 FULL_MAPPING = {**INFO_MAPPING, **FEES_MAPPING, **RISK_MAPPING, **POLICY_MAPPING}
 
 # ==========================================

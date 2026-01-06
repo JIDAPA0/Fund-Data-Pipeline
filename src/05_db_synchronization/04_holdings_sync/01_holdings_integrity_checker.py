@@ -6,8 +6,7 @@ import pandas as pd
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
-STAGING_DIR = BASE_DIR / "data" / "03_staging" / "holdings" / TODAY
+STAGING_DIR = BASE_DIR / "data" / "03_staging" / "holdings"
 
 FILES = {
     "holdings_clean.csv": "holdings_validated.csv",

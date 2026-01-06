@@ -85,7 +85,7 @@ class FTHoldingsScraper:
 
                     first_col_text = cols[0].text.strip()
                     
-                    # 1. Capture Summary Row (แก้ปัญหา 9 แถว)
+                    
                     if "per cent" in first_col_text.lower() or "total" in first_col_text.lower():
                         match = re.search(r'(\d{1,3}(\.\d+)?)%', row.text) 
                         if match:
@@ -114,7 +114,7 @@ class FTHoldingsScraper:
         self.processed_count += 1
         print(f"[{self.processed_count}/{self.total_count}] Processing: {ticker} ...", end='\r')
 
-        # ✅ FIX: แก้ชื่อไฟล์ที่มี /
+        
         safe_ticker = ticker.replace(':', '_').replace('/', '_')
         fname = OUTPUT_DIR / f"{safe_ticker}_{atype}_holdings.csv"
 

@@ -1,19 +1,14 @@
 import sys
 from pathlib import Path
-from datetime import datetime
 import pandas as pd
 
-# This cleaner consolidates static detail CSVs from validation_output into a single
-# staging folder under data/03_static_details/<date> with normalized columns.
+# Consolidates static detail CSVs into data/03_static_details (flat, no date folder).
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
 VALIDATION_ROOT = BASE_DIR / "validation_output"
-STAGING_ROOT = BASE_DIR / "data" / "03_static_details"
-
-TODAY = datetime.now().strftime("%Y-%m-%d")
-OUTPUT_DIR = STAGING_ROOT / TODAY
+OUTPUT_DIR = BASE_DIR / "data" / "03_static_details"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 INFO_FILES = list((VALIDATION_ROOT).glob("*/03_Detail_Static/*fund_info.csv"))
@@ -30,10 +25,15 @@ def load_and_normalize(files, expected_cols, filename):
         except Exception:
             continue
         df.columns = [c.strip().lower() for c in df.columns]
-        df["source"] = df.get("source", f.parent.parent.name.replace("_", " ")).fillna(
-            f.parent.parent.name.replace("_", " ")
-        )
-        df["asset_type"] = df.get("asset_type", "").str.upper().fillna("ETF")
+        if "source" in df.columns:
+            df["source"] = df["source"].fillna(f.parent.parent.name.replace("_", " "))
+        else:
+            df["source"] = f.parent.parent.name.replace("_", " ")
+        asset_type = df["asset_type"] if "asset_type" in df.columns else None
+        if asset_type is not None:
+            df["asset_type"] = asset_type.astype(str).str.upper().fillna("ETF")
+        else:
+            df["asset_type"] = "ETF"
         frames.append(df)
 
     if not frames:

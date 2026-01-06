@@ -20,18 +20,15 @@ sys.path.append(str(project_root))
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-TIMESTAMP = datetime.now().strftime('%Y-%m-%d')
 STAGING_DIR = project_root / "data" / "03_staging" / "price_history"
-HASHED_DIR = project_root / "data" / "04_hashed" / "price_history" / TIMESTAMP
+HASHED_DIR = project_root / "data" / "04_hashed" / "price_history"
+HASHED_DIR.mkdir(parents=True, exist_ok=True)
 
 # ==========================================
 # 2. HASHING FUNCTION
 # ==========================================
 
 def calculate_row_hash(row):
-    """
-    คำนวณค่า Hash จากข้อมูลราคา เพื่อใช้เช็คความเปลี่ยนแปลงใน DB
-    """
     hash_columns = ['open', 'high', 'low', 'close', 'adj_close', 'volume']
     
     combined = "".join([str(row.get(col, "")) for col in hash_columns])

@@ -1,7 +1,6 @@
 import sys
 import os
 import pandas as pd
-from datetime import datetime
 from pathlib import Path
 
 # ==========================================
@@ -29,17 +28,15 @@ except ImportError as e:
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
-print(f"📅 Target Date: {CURRENT_DATE}")
-
 RAW_DIRS = [
-    DATA_PERFORMANCE_DIR / "financial_times" / CURRENT_DATE,
-    DATA_PERFORMANCE_DIR / "yahoo_finance" / CURRENT_DATE,
-    DATA_PERFORMANCE_DIR / "stock_analysis" / CURRENT_DATE
+    DATA_PERFORMANCE_DIR / "financial_times",
+    DATA_PERFORMANCE_DIR / "yahoo_finance",
+    DATA_PERFORMANCE_DIR / "stock_analysis"
 ]
 
-CLEAN_DIR = DATA_STORE_DIR / "03_staging" / "daily_nav" / CURRENT_DATE
-CLEAN_FILE = CLEAN_DIR / f"merged_daily_nav_{CURRENT_DATE}.csv"
+CLEAN_DIR = DATA_STORE_DIR / "03_staging"
+CLEAN_DIR.mkdir(parents=True, exist_ok=True)
+CLEAN_FILE = CLEAN_DIR / "merged_daily_nav.csv"
 
 # ==========================================
 # 2. CORE LOGIC
@@ -50,7 +47,7 @@ def load_and_merge_csvs():
     print(f"🔍 Scanning folders...")
     
     for folder in RAW_DIRS:
-        # เช็คว่าโฟลเดอร์มีอยู่จริงไหม (เผื่อยังไม่ได้รัน Stock Analysis)
+        
         if not folder.exists():
             print(f"   ⚠️  Folder not found (Skipping): {folder.name}")
             continue
@@ -69,7 +66,7 @@ def load_and_merge_csvs():
                 # 1. Fix Columns Name
                 df.columns = [c.strip().lower() for c in df.columns]
                 
-                # 2. Assign Source (เพิ่ม Logic ของ Stock Analysis)
+                
                 if 'source' not in df.columns:
                     folder_str = str(folder).lower()
                     if 'financial_times' in folder_str:
@@ -105,7 +102,7 @@ def clean_data(df):
     # Clean Strings
     df['ticker'] = df['ticker'].astype(str).str.upper().str.strip()
     df['asset_type'] = df['asset_type'].astype(str).str.upper().str.strip()
-    # เช็คว่า source ไม่เป็น None ก่อนเรียก .str
+    
     if df['source'].notna().all():
         df['source'] = df['source'].astype(str).str.strip()
     

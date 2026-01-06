@@ -73,10 +73,6 @@ async def login_to_sa(context):
     finally: await page.close()
 
 def get_db_state():
-    """
-    ดึงข้อมูลล่าสุดจาก Database ว่าแต่ละ Ticker อัปเดตถึงวันไหนแล้ว
-    เพื่อนำมาเช็คว่าต้องดึงใหม่หรือไม่
-    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()

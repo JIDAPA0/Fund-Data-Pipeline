@@ -45,9 +45,9 @@ LOGIN_URL = "https://stockanalysis.com/login"
 ASSET_TYPE = 'etf'
 current_date = datetime.now().strftime('%Y-%m-%d')
 
-# Path ที่เราเก็บไฟล์ประวัติราคา
+
 HISTORY_DIR = VAL_SA_HIST / current_date / "Price_History"
-# Path เก็บ Error Screenshot
+
 ERROR_SCREENSHOT_DIR = HISTORY_DIR / "remediator_errors"
 ERROR_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -59,7 +59,7 @@ logger = setup_logger("SA_Remediator", "02_perf_remediator")
 def identify_missing_tickers():
     logger.info("🔍 STARTING GAP ANALYSIS...")
     
-    # 1. Load Master List (เป้าหมายทั้งหมด)
+    
     try:
         master_path = list(VAL_SA_MASTER.rglob(f"sa_{ASSET_TYPE}_master.csv"))[-1]
         master_df = pd.read_csv(master_path)
@@ -69,12 +69,12 @@ def identify_missing_tickers():
         logger.error(f"❌ Failed to load Master List: {e}")
         return []
 
-    # 2. Check Existing Files (งานที่เสร็จแล้ว)
+    
     if not HISTORY_DIR.exists():
         logger.warning("⚠️ History directory not found. Assuming 0 files downloaded.")
         existing_files = set()
     else:
-        # เช็คไฟล์ที่มีนามสกุล .csv และขนาดต้องมากกว่า 100 bytes (กันไฟล์เปล่า)
+        
         existing_files = {
             f.name.replace('_history.csv', '').upper() 
             for f in HISTORY_DIR.glob('*_history.csv') 
@@ -82,15 +82,15 @@ def identify_missing_tickers():
         }
         logger.info(f"📂 Found {len(existing_files)} valid history files.")
 
-    # 3. Calculate Gap (งานที่เหลือ)
+    
     missing_tickers = list(all_tickers - existing_files)
-    missing_tickers.sort() # เรียงตามตัวอักษร
+    missing_tickers.sort() 
     
     logger.info(f"🚨 MISSING TICKERS: {len(missing_tickers)}")
     return missing_tickers
 
 # ==========================================
-# 3. SCRAPING LOGIC (เหมือนตัวเดิมแต่เน้น Safe)
+
 # ==========================================
 async def login_to_sa(context):
     page = await context.new_page()
@@ -117,11 +117,11 @@ async def login_to_sa(context):
 
 async def perform_download_csv(page, ticker):
     try:
-        # พยายามกดปุ่ม Download
+        
         download_btn = page.locator('button:has-text("Download")').first
         if await download_btn.is_visible():
             await download_btn.click()
-            await asyncio.sleep(2) # รอเมนูเด้ง
+            await asyncio.sleep(2) 
             
             csv_option = page.get_by_text("Download to CSV")
             if await csv_option.is_visible():
@@ -158,7 +158,7 @@ async def process_ticker(context, ticker, progress_str):
         try:
             await page.wait_for_selector('table tbody tr', timeout=10000)
         except:
-            # ถ้าไม่เจอตาราง ให้แคปหน้าจอเก็บไว้เป็นหลักฐาน
+            
             logger.warning(f"{progress_str} ❌ No Data. Screenshot saved.")
             await page.screenshot(path=ERROR_SCREENSHOT_DIR / f"{ticker}_missing.png")
             return "not_found"
@@ -202,14 +202,14 @@ async def main():
     logger.info("🚑 STARTING SA REMEDIATOR (GAP FILLER)")
     logger.info("="*50)
 
-    # 1. หาตัวที่หายไป
+    
     missing_list = identify_missing_tickers()
     
     if not missing_list:
         logger.info("✨ No missing tickers found! Your data is complete.")
         return
 
-    # 2. เริ่มไล่เก็บเฉพาะตัวที่หาย
+    
     stats = {"fixed": 0, "error": 0, "not_found": 0}
     
     async with async_playwright() as p:
@@ -224,7 +224,7 @@ async def main():
         for i, ticker in enumerate(missing_list):
             progress = f"[{i+1}/{total}]"
             
-            # Retry Logic (ลอง 2 รอบ)
+            
             for attempt in range(2):
                 res = await process_ticker(context, ticker, progress)
                 if res != "error":
@@ -236,7 +236,7 @@ async def main():
             
             if res == "error": stats["error"] += 1
             
-            # พักระหว่างตัว (สุ่ม)
+            
             await asyncio.sleep(random.uniform(5, 10))
 
         await browser.close()

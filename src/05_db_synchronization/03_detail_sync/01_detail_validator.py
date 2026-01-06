@@ -1,16 +1,13 @@
 import sys
 from pathlib import Path
-from datetime import datetime
 import pandas as pd
 
-# Basic validator: drop rows missing ticker/source, normalize asset_type, and re-save
-# validated files into the same staging folder.
+# Basic validator: drop rows missing ticker/source, normalize asset_type, and re-save validated files.
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
-STAGING_DIR = BASE_DIR / "data" / "03_static_details" / TODAY
+STAGING_DIR = BASE_DIR / "data" / "03_static_details"
 
 FILES = {
     "fund_info_clean.csv": "fund_info_validated.csv",

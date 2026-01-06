@@ -15,7 +15,7 @@ if str(project_root) not in sys.path:
 from src.utils.logger import setup_logger
 from src.utils.db_connector import get_active_tickers
 
-# ✅ ตั้งชื่อ Log ตามหมวดหมู่
+
 logger = setup_logger("03_master_detail_static_policy")
 
 # ✅ FIX PATH
@@ -23,7 +23,7 @@ OUTPUT_DIR = project_root / "validation_output" / "Yahoo_Finance" / "03_Detail_S
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_FILE = OUTPUT_DIR / "yf_fund_policy.csv"
 
-# คอลัมน์เป้าหมาย
+
 COLS = ["ticker", "div_yield", "pe_ratio", "total_return_ytd", "total_return_1y", "updated_at"]
 
 class YFPolicyScraper:
@@ -54,17 +54,17 @@ class YFPolicyScraper:
         data.update({"ticker": ticker, "updated_at": pd.Timestamp.now().strftime('%Y-%m-%d')})
         
         try:
-            # --- 1. หน้า Summary (เก็บ Yield, P/E, YTD Return) ---
+            
             await page.goto(f"https://finance.yahoo.com/quote/{ticker}", wait_until="domcontentloaded", timeout=30000)
             await asyncio.sleep(2)
             
-            # ดึงข้อมูลจากก้อน Statistics (มักเป็น li หรือ tr ในหน้า Summary)
+            
             summary_items = await page.locator('div[data-testid="quote-statistics"] li, table tr').all()
             for item in summary_items:
                 txt = await item.inner_text()
                 if not txt or '\t' not in txt.replace('\n', '\t'): continue
                 
-                # แยก label และ value (Yahoo มักใช้ Tab หรือ Newline คั่น)
+                
                 parts = txt.replace('\n', '\t').split('\t')
                 label, val = parts[0].strip(), parts[-1].strip()
                 
@@ -74,12 +74,12 @@ class YFPolicyScraper:
                 elif "PE Ratio" in label: data["pe_ratio"] = val
                 elif "YTD Return" in label: data["total_return_ytd"] = val
 
-            # --- 2. หน้า Performance (เก็บ 1-Year Return) ---
+            
             await page.goto(f"https://finance.yahoo.com/quote/{ticker}/performance", wait_until="domcontentloaded", timeout=30000)
             await asyncio.sleep(2)
             
-            # เจาะจงหาแถว 1-Year ในตาราง Trailing Returns
-            # โดยปกติค่าของกองทุนจะอยู่ในคอลัมน์ที่ 2 (index 1)
+            
+            
             one_year_row = page.locator('tr:has-text("1-Year"), tr:has-text("1Y")')
             if await one_year_row.count() > 0:
                 cells = one_year_row.first.locator('td')
@@ -106,7 +106,7 @@ class YFPolicyScraper:
                 if res:
                     pd.DataFrame([res])[COLS].to_csv(OUTPUT_FILE, mode='a', header=False, index=False)
                 
-                # พักเพื่อความปลอดภัย
+                
                 await asyncio.sleep(random.uniform(1, 3))
             
             await browser.close()

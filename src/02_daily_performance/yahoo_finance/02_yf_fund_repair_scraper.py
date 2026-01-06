@@ -23,7 +23,7 @@ class YFRepair:
     def __init__(self):
         self.current_date = datetime.now().strftime('%Y-%m-%d')
         self.input_dir = DATA_PERFORMANCE_DIR / "yahoo_finance" / self.current_date
-        # อ่านจากไฟล์ Error ของ Fund
+        
         self.error_file = self.input_dir / "yf_errors_fund.csv"
         self.repair_log = self.input_dir / "yf_fund_repair_log.csv"
 
@@ -40,20 +40,18 @@ class YFRepair:
         page = await context.new_page()
         try:
             url = f"https://finance.yahoo.com/quote/{ticker}"
-            # Yahoo โหลดหนักหน่อย ให้เวลา 30 วิ
+            
             await page.goto(url, timeout=30000, wait_until='domcontentloaded')
             
-            # ใช้ JS แกะราคาจาก fin-streamer
+            
             data = await page.evaluate("""() => {
                 const getPrice = (field) => {
                     const el = document.querySelector(`fin-streamer[data-field="${field}"]`);
                     return el ? el.innerText.replace(/,/g, '') : null;
                 };
                 
-                // ลองหาหลายๆ field
                 let price = getPrice('regularMarketPrice') || getPrice('regularMarketOpen') || getPrice('navPrice');
                 
-                // ถ้ายังไม่เจอ ลองหาจาก class ทั่วไป (เผื่อ Yahoo เปลี่ยน layout)
                 if (!price) {
                     const el = document.querySelector('fin-streamer[data-test="qsp-price"]');
                     if (el) price = el.innerText.replace(/,/g, '');
@@ -88,7 +86,7 @@ class YFRepair:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             
-            # ทำทีละ 5 ตัวพอ (Playwright กิน RAM เยอะ)
+            
             BATCH_SIZE = 5
             success_count = 0
             

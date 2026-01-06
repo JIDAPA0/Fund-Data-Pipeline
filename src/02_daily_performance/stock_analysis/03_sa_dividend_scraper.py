@@ -74,14 +74,14 @@ async def login_to_sa(context):
 
 async def perform_download_csv(page, ticker, temp_dir):
     try:
-        # กดปุ่ม Download หลัก
+        
         download_btn = page.locator('button:has-text("Download")').first
         if await download_btn.is_visible():
             await download_btn.click()
-            # รอเมนูเด้งแป๊บนึง
+            
             await asyncio.sleep(0.5)
             
-            # กด Download CSV
+            
             csv_option = page.get_by_text("Download to CSV")
             if await csv_option.is_visible():
                 async with page.expect_download(timeout=30000) as download_info:
@@ -143,7 +143,6 @@ async def process_ticker(context, ticker, progress_str):
         return status
 
 def get_all_downloaded_tickers(base_path):
-    """สแกนหาไฟล์ Dividend เก่าทั้งหมด"""
     downloaded = set()
     if not base_path.exists(): return downloaded
     for file_path in base_path.rglob("*_dividend.csv"):

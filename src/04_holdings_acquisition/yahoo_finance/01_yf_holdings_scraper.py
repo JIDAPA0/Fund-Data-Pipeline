@@ -35,7 +35,7 @@ DIR_HOLDINGS = BASE_OUTPUT_DIR / "Holdings"
 DIR_SECTORS = BASE_OUTPUT_DIR / "Sectors"
 DIR_ALLOCATION = BASE_OUTPUT_DIR / "Allocation"
 
-# ✅ ไฟล์รายงานตัวที่เก็บไม่ได้ (Missing Report)
+
 MISSING_REPORT_FILE = BASE_OUTPUT_DIR / "yf_holdings_missing_report.csv"
 
 # Create Directories
@@ -60,7 +60,7 @@ class YFHoldingsScraper:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0"
         ]
 
-        # สร้างไฟล์ Report ถ้ายั่งไม่มี
+        
         if not MISSING_REPORT_FILE.exists():
             pd.DataFrame(columns=["ticker", "asset_type", "reason", "timestamp"]).to_csv(MISSING_REPORT_FILE, index=False)
 
@@ -68,7 +68,6 @@ class YFHoldingsScraper:
         return random.choice(self.user_agents)
 
     async def log_missing(self, ticker, asset_type, reason):
-        """บันทึกตัวที่เก็บไม่ได้ลงไฟล์แยก"""
         try:
             df = pd.DataFrame([{
                 "ticker": ticker,
@@ -240,7 +239,7 @@ class YFHoldingsScraper:
                 df.to_csv(f_alloc, index=False)
                 data_found = True
 
-            # 🚨 ถ้าหาไม่เจอสักอย่างเดียวเลย ให้บันทึกว่า NO_DATA
+            
             if not data_found:
                 fail_reason = "NO_HOLDINGS_DATA (Page loaded but empty)"
                 await self.log_missing(ticker, asset_type, fail_reason)

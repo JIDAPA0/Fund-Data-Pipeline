@@ -30,10 +30,8 @@ except ImportError as e:
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
-
-INPUT_DIR = DATA_STORE_DIR / "03_staging" / "daily_nav" / CURRENT_DATE
-INPUT_FILE = INPUT_DIR / f"validated_daily_nav_{CURRENT_DATE}.csv"
+INPUT_DIR = DATA_STORE_DIR / "03_staging"
+INPUT_FILE = INPUT_DIR / "validated_daily_nav.csv"
 TABLE_NAME = "stg_daily_nav"
 
 # ==========================================

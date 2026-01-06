@@ -5,9 +5,8 @@ from datetime import datetime
 # Simple archiver: copy hashed static detail files into an archive folder for traceability.
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-TODAY = datetime.now().strftime("%Y-%m-%d")
-HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "static_details" / TODAY
-ARCHIVE_DIR = BASE_DIR / "data" / "archive" / "static_details" / TODAY
+HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "static_details"
+ARCHIVE_DIR = BASE_DIR / "data" / "archive" / "static_details" / datetime.now().strftime("%Y-%m-%d")
 
 
 def main():

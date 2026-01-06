@@ -13,12 +13,9 @@ from src.utils.path_manager import DATA_STORE_DIR
 
 logger = setup_logger("Retention_Cleaner", "99_sys")
 
-RETENTION_DAYS = 60  # เก็บข้อมูลย้อนหลัง 60 วัน
+RETENTION_DAYS = 60  
 
 def run_retention_policy():
-    """
-    ลบไฟล์ Zip ใน Archive ที่เก่ากว่า 60 วัน
-    """
     start_time = time.time()
     cutoff_date = datetime.now() - timedelta(days=RETENTION_DAYS)
     deleted_count = 0
@@ -30,10 +27,10 @@ def run_retention_policy():
         logger.warning("No archive directory found.")
         return
 
-    # เดินดูทุกไฟล์ใน archive (ใช้ rglob เพื่อดูทุก subfolder)
-    # โครงสร้างปกติคือ archive/master_list/YYYY-MM-DD/file.zip
     
-    # 1. เช็คที่ชื่อโฟลเดอร์วันที่เป็นหลัก
+    
+    
+    
     for date_dir in archive_root.rglob("*"):
         if date_dir.is_dir() and is_date_format(date_dir.name):
             
@@ -42,7 +39,7 @@ def run_retention_policy():
                 
                 if folder_date < cutoff_date:
                     logger.info(f"🗑️ Purging Old Archive: {date_dir} (Age: {(datetime.now() - folder_date).days} days)")
-                    # ลบทั้งโฟลเดอร์วันที่
+                    
                     import shutil
                     shutil.rmtree(date_dir)
                     deleted_count += 1
@@ -58,7 +55,6 @@ def run_retention_policy():
     )
 
 def is_date_format(string):
-    """Helper ตรวจสอบว่าชื่อโฟลเดอร์เป็น YYYY-MM-DD หรือไม่"""
     try:
         datetime.strptime(string, "%Y-%m-%d")
         return True

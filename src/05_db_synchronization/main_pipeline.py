@@ -3,13 +3,15 @@ import sys
 import time
 import os
 from pathlib import Path
+import logging
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
 from src.utils.logger import setup_logger, log_execution_summary
 
-logger = setup_logger("GLOBAL_PIPELINE", "05_sync")
+# Use INFO level; category resolved by name prefix
+logger = setup_logger("05_sync_GLOBAL_PIPELINE", logging.INFO)
 
 GLOBAL_PIPELINE = [
     {
@@ -31,7 +33,6 @@ GLOBAL_PIPELINE = [
 ]
 
 def run_orchestrator(module):
-    """ฟังก์ชันสั่งรัน Orchestrator รายโมดูล"""
     name = module["name"]
     full_path = BASE_DIR / module["path"]
     
@@ -46,7 +47,7 @@ def run_orchestrator(module):
     env["PYTHONPATH"] = str(BASE_DIR)
 
     try:
-        # รัน Orchestrator ของโมดูลนั้นๆ
+        
         subprocess.run([sys.executable, str(full_path)], check=True, env=env)
         
         duration = time.time() - start
@@ -67,12 +68,12 @@ def main():
         success = run_orchestrator(module)
         results.append((module["name"], success))
         
-        # ถ้า Master List พัง ไม่ควรไปทำโมดูลราคาต่อ (เพราะจะไม่มี Ticker ให้ดึง)
+        
         if not success:
             logger.critical("🛑 Critical Module failed. Stopping Global Pipeline to prevent data corruption.")
             break
 
-    # สรุปผลการรันทุกโมดูล
+    
     log_execution_summary(
         logger,
         start_time=pipeline_start,

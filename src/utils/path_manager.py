@@ -4,7 +4,7 @@ from pathlib import Path
 # ==========================================
 # 1. Project Configuration & Root Path
 # ==========================================
-# ถอยหลัง 3 สเต็ปจากไฟล์นี้ (src/utils/path_manager.py) เพื่อหา Root
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # ==========================================
@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 LOG_DIR = BASE_DIR / "logs"
 SRC_DIR = BASE_DIR / "src"
-OUTPUT_DIR = BASE_DIR / "outputs" # Folder Outputs กลาง
+OUTPUT_DIR = BASE_DIR / "outputs" 
 
 # --- 2.1 Validation Outputs Root ---
 VALIDATION_DIR = BASE_DIR / "validation_output"
@@ -49,13 +49,13 @@ VAL_SYS_DUPES   = VAL_SYS_QUEUES / "Duplicate_Reports"
 VAL_SYS_REPORTS = VAL_SYS_QUEUES / "Validation_Reports"
 
 # --- 2.2 Auth & Session Storage (NEW) ---
-# เก็บไฟล์ session (json/cookies) ที่ login แล้วไว้ที่นี่
+
 AUTH_DIR = OUTPUT_DIR / "auth"
 
 # ==========================================
 # 3. Data Store Directories
 # ==========================================
-DATA_STORE_DIR = BASE_DIR / "data"  # ใช้โฟลเดอร์ data ที่มีอยู่จริง
+DATA_STORE_DIR = BASE_DIR / "data"  
 
 DATA_MASTER_LIST_DIR = DATA_STORE_DIR / "01_master_list"
 DATA_MASTER_READY_DIR = DATA_MASTER_LIST_DIR / "04_ready_to_load" # Stage 04 Support

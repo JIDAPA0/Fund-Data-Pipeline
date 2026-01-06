@@ -13,7 +13,7 @@ sys.path.append(str(BASE_DIR))
 from src.utils.path_manager import DATA_MASTER_LIST_DIR
 from src.utils.logger import setup_logger, log_execution_summary
 
-# ✅ [FIXED] แก้ชื่อ Logger และลบพารามิเตอร์ตัวที่ 2
+
 logger = setup_logger("05_sync_Validator")
 
 def validate_data():
@@ -36,20 +36,20 @@ def validate_data():
     
     for index, row in df.iterrows():
         issues = []
-        # Rule 1: Ticker ห้ามว่าง
+        
         if pd.isna(row.get('ticker')) or str(row.get('ticker')).strip() == "":
             issues.append("Missing Ticker")
             
-        # Rule 2: Asset Type ต้องเป็น FUND หรือ ETF (Case Insensitive)
+        
         asset_val = str(row.get('asset_type')).strip().upper()
         if asset_val not in ['FUND', 'ETF']:
              issues.append(f"Invalid Asset Type: {asset_val}")
              
-        # Rule 3: Source ห้ามว่าง
+        
         if pd.isna(row.get('source')) or str(row.get('source')).strip() == "":
             issues.append("Missing Source")
             
-        # Rule 4: Status ต้องเป็น active, inactive หรือ new
+        
         status_val = str(row.get('status')).lower().strip()
         if status_val not in ['active', 'inactive', 'new']:
             issues.append(f"Invalid Status: {status_val}")
@@ -68,7 +68,7 @@ def validate_data():
     output_dir_03.mkdir(parents=True, exist_ok=True)
     output_dir_04.mkdir(parents=True, exist_ok=True)
     
-    # Save Valid (บันทึกทั้ง Stage 03 และ 04)
+    
     if valid_rows:
         valid_df = pd.DataFrame(valid_rows)
         # 1. Save to Validated Stage (Archive purpose)

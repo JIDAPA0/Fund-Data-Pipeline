@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from datetime import datetime
 import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -8,8 +7,7 @@ sys.path.append(str(BASE_DIR))
 
 from src.utils.db_connector import insert_dataframe, init_allocations_table, get_db_engine
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
-HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "holdings" / TODAY
+HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "holdings"
 
 
 def ensure_table():
