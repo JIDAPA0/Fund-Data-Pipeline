@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from datetime import datetime
 import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -8,8 +7,7 @@ sys.path.append(str(BASE_DIR))
 
 from src.utils.db_connector import insert_dataframe, get_db_engine, init_fund_info_table, init_fund_fees_table, init_fund_risk_table, init_fund_policy_table
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
-HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "static_details" / TODAY
+HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "static_details"
 
 
 def ensure_tables():
@@ -35,6 +33,16 @@ def load_file(filename: str, table: str, required_cols):
         if col not in df.columns:
             df[col] = None
     df = df[required_cols]
+
+    # Coerce and clean common fields
+    if "inception_date" in df.columns:
+        df["inception_date"] = pd.to_datetime(df["inception_date"], errors="coerce")
+    if "updated_at" in df.columns:
+        df["updated_at"] = pd.to_datetime(df["updated_at"], errors="coerce")
+        df["updated_at"] = df["updated_at"].fillna(pd.Timestamp.utcnow())
+    if "shares_out" in df.columns:
+        df["shares_out"] = pd.to_numeric(df["shares_out"], errors="coerce")
+
     insert_dataframe(df, table)
     print(f"✅ Loaded {len(df)} rows into {table}")
 

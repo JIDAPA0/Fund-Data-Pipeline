@@ -4,12 +4,12 @@ from datetime import datetime
 from pathlib import Path
 
 # CONFIG
-TIMESTAMP = datetime.now().strftime('%Y-%m-%d')
 STAGING_DIR = Path("data/03_staging/dividend_history")
-HASHED_DIR = Path(f"data/04_hashed/dividend_history/{TIMESTAMP}")
+HASHED_DIR = Path("data/04_hashed/dividend_history")
+HASHED_DIR.mkdir(parents=True, exist_ok=True)
 
 def calculate_dvd_hash(row):
-    # Hash จากวันที่ปันผลและจำนวนเงิน
+    
     combined = f"{row.get('ex_date', '')}{row.get('amount', '')}{row.get('type', '')}"
     return hashlib.sha256(combined.encode()).hexdigest()
 

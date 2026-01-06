@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from urllib.parse import quote_plus
 from typing import Optional, List, Dict
-# เพิ่มบรรทัดนี้เข้ามา เพื่อรองรับการอัปเดตข้อมูลซ้ำ (Upsert)
+
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # ----------------------------------------------------------------------
-# 1. ตั้งค่าพื้นฐาน (SETUP & PATHS)
+
 # ----------------------------------------------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -22,7 +22,7 @@ else:
     print(f"⚠️  เตือน: ไม่เจอไฟล์ .env ที่ {ENV_PATH}")
 
 # ----------------------------------------------------------------------
-# 2. ฟังก์ชันเชื่อมต่อฐานข้อมูล (DATABASE CONNECTION)
+
 # ----------------------------------------------------------------------
 
 def get_db_url() -> str:
@@ -52,7 +52,7 @@ def get_db_engine():
         raise
 
 def get_db_connection():
-    # ✅ ปรับคืนค่าเป็น engine เพื่อรองรับ Transaction ขั้นสูง
+    
     return get_db_engine()
 
 def test_connection():
@@ -67,11 +67,10 @@ def test_connection():
         return False
 
 # ----------------------------------------------------------------------
-# 3. สร้างตารางต่างๆ (SCHEMA INITIALIZATION)
+
 # ----------------------------------------------------------------------
 
 def init_master_table(engine):
-    """สร้างตาราง stg_security_master (เก็บรายชื่อหุ้น)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_security_master (
@@ -96,7 +95,6 @@ def init_master_table(engine):
         raise
 
 def init_price_history_table(engine):
-    """สร้างตาราง stg_price_history (เก็บราคาหุ้น)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_price_history (
@@ -126,7 +124,6 @@ def init_price_history_table(engine):
         raise
 
 def init_daily_nav_table(engine):
-    """สร้างตาราง stg_daily_nav (เก็บ NAV กองทุน)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_daily_nav (
@@ -150,7 +147,6 @@ def init_daily_nav_table(engine):
         raise
 
 def init_dividend_history_table(engine):
-    """🛠️ ปรับปรุง: สร้างตาราง Dividend History แบบยืดหยุ่น (ถอด UNIQUE CONSTRAINT ออกเพื่อให้รับข้อมูลได้ก่อน)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_dividend_history (
@@ -176,7 +172,6 @@ def init_dividend_history_table(engine):
         raise
 
 def init_allocations_table(engine):
-    """สร้างตาราง stg_allocations (เก็บสัดส่วนกลุ่มการลงทุน)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_allocations (
@@ -204,7 +199,6 @@ def init_allocations_table(engine):
         raise
 
 def init_fund_info_table(engine):
-    """สร้างตาราง stg_fund_info (เก็บรายละเอียดกองทุน)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_info (
@@ -238,7 +232,6 @@ def init_fund_info_table(engine):
         raise
 
 def init_fund_fees_table(engine):
-    """สร้างตาราง stg_fund_fees (เก็บค่าธรรมเนียม)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_fees (
@@ -264,7 +257,6 @@ def init_fund_fees_table(engine):
         raise
 
 def init_fund_risk_table(engine):
-    """สร้างตาราง stg_fund_risk (เก็บสถิติความเสี่ยง)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_risk (
@@ -293,7 +285,6 @@ def init_fund_risk_table(engine):
         raise
 
 def init_fund_policy_table(engine):
-    """สร้างตาราง stg_fund_policy (เก็บนโยบาย/ปันผล/PE)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_policy (
@@ -322,7 +313,6 @@ def init_fund_policy_table(engine):
         raise
 
 def init_fund_holdings_table(engine):
-    """สร้างตาราง stg_fund_holdings (เก็บรายชื่อหุ้น/สินทรัพย์ที่กองทุนถือครอง)"""
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_holdings (
@@ -352,11 +342,10 @@ def init_fund_holdings_table(engine):
         raise
 
 # ----------------------------------------------------------------------
-# 4. ฟังก์ชันช่วยดึงข้อมูล (DATA HELPER FUNCTIONS)
+
 # ----------------------------------------------------------------------
 
 def get_active_tickers(source_name: str, asset_type: Optional[str] = None) -> List[Dict]:
-    """📌 ฟังก์ชันสำหรับดึงรายชื่อ Ticker จาก Database"""
     engine = get_db_engine()
     source_map = {
         "ft": "Financial Times", "financial times": "Financial Times",
@@ -384,7 +373,6 @@ def get_active_tickers(source_name: str, asset_type: Optional[str] = None) -> Li
         return []
 
 def upsert_method(table, conn, keys, data_iter):
-    """📌 ฟังก์ชันช่วยบันทึกข้อมูล (Upsert)"""
     data = [dict(zip(keys, row)) for row in data_iter]
     stmt = pg_insert(table.table).values(data)
     
@@ -392,7 +380,7 @@ def upsert_method(table, conn, keys, data_iter):
         'stg_security_master': 'uq_stg_master_key',
         'stg_price_history': 'uq_stg_price_key',
         'stg_daily_nav': 'uq_stg_daily_nav_key',
-        'stg_dividend_history': 'uq_stg_div_key',
+        'stg_dividend_history': None,
         'stg_allocations': 'uq_stg_allocations_key',
         'stg_fund_info': 'stg_fund_info_pkey',
         'stg_fund_fees': 'stg_fund_fees_pkey',
@@ -406,15 +394,15 @@ def upsert_method(table, conn, keys, data_iter):
 
     if constraint:
         set_ = {c.key: c for c in stmt.excluded if c.key not in ['id', 'updated_at']}
-        stmt = stmt.on_conflict_do_update(constraint=constraint, set_=set_)
+        where_clause = None
         if "row_hash" in table.table.c:
-            stmt = stmt.where(table.table.c.row_hash.is_distinct_from(stmt.excluded.row_hash))
+            where_clause = table.table.c.row_hash.is_distinct_from(stmt.excluded.row_hash)
+        stmt = stmt.on_conflict_do_update(constraint=constraint, set_=set_, where=where_clause)
     
     result = conn.execute(stmt)
     return result.rowcount
 
 def insert_dataframe(df: pd.DataFrame, table_name: str):
-    """📌 บันทึก DataFrame ลง Database"""
     if df.empty:
         print(f"⚠️  ไม่มีข้อมูลใน DataFrame ข้ามการบันทึก '{table_name}'")
         return

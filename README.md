@@ -29,11 +29,11 @@ Extracts fund data (lists, performance, static details, holdings) and syncs into
 - `cron_schedule` runs the full pipeline Mon–Fri 06:00 Asia/Bangkok (container TZ already set):  
   `0 6 * * 1-5 cd /app && PYTHONPATH=/app /usr/bin/python src/05_db_synchronization/main_pipeline.py`
 
-### Data flow (modules)
+### Data flow (modules, flat file layout)
 1. Master sync: scrapers → validator/remediator → loader.
-2. Performance sync: scrapers → cleaners/validators → hashed → DB loaders.
-3. Detail sync: reads `validation_output/*/03_Detail_Static/*fund_*.csv` → staging → hashed → loads `stg_fund_info/fees/risk/policy`.
-4. Holdings sync: reads `validation_output/Financial_Times/04_Holdings/*` → staging → hashed → loads `stg_fund_holdings` and `stg_allocations`.
+2. Performance sync: scrapers → cleaners/validators → hashed → DB loaders. Staging files live flat under `data/03_staging` (e.g., `merged_daily_nav.csv`, `validated_daily_nav.csv`, `price_history/<source>/*.csv`, `dividend_history/<source>/*.csv`). Hashed outputs live under `data/04_hashed/price_history` and `data/04_hashed/dividend_history` without date folders.
+3. Detail sync: reads `validation_output/*/03_Detail_Static/*fund_*.csv` → staging `data/03_static_details` → hashed `data/04_hashed/static_details` → loads `stg_fund_info/fees/risk/policy`.
+4. Holdings sync: reads `validation_output/Financial_Times/04_Holdings/*` → staging `data/03_staging/holdings` → hashed `data/04_hashed/holdings` → loads `stg_fund_holdings` and `stg_allocations`.
 
 ### Export/Import schema
 - Export schema (no data) to `database/schema_dump.sql`: `chmod +x database/export_schema.sh && ./database/export_schema.sh`

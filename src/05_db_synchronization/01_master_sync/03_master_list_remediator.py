@@ -10,7 +10,7 @@ sys.path.append(str(BASE_DIR))
 from src.utils.path_manager import DATA_MASTER_LIST_DIR
 from src.utils.logger import setup_logger, log_execution_summary
 
-# ✅ [FIXED] แก้ชื่อ Logger
+
 logger = setup_logger("05_sync_Remediator")
 
 def remediate_data():
@@ -19,9 +19,9 @@ def remediate_data():
     
     logger.info("🔧 STARTING MASTER LIST REMEDIATOR")
     
-    # เนื่องจากเรา save ไฟล์ไปที่ 04 ในขั้นตอน Validator แล้ว 
-    # ไฟล์นี้จึงทำหน้าที่แค่ Log หรือจัดการเคสพิเศษ (ถ้ามี)
-    # หรือถ้าจะให้ถูกต้องตาม Flow ก็ควรอ่านจาก 03 แล้วเขียนไป 04 อีกที (เผื่อ Validator ไม่เขียน)
+    
+    
+    
     
     input_path = DATA_MASTER_LIST_DIR / "03_validated_stage" / today_str / "valid_master_list.csv"
     output_dir = DATA_MASTER_LIST_DIR / "04_ready_to_load" / today_str

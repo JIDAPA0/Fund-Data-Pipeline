@@ -30,9 +30,9 @@ except ImportError:
 ASSET_TYPE = 'ETF'
 SOURCE_NAME = 'Yahoo Finance'
 
-BATCH_SIZE = 40       # ปรับเท่า Fund
-NORMAL_DELAY = 2      # ปรับเท่า Fund
-COOL_DOWN_DELAY = 120 # ปรับเท่า Fund
+BATCH_SIZE = 40       
+NORMAL_DELAY = 2      
+COOL_DOWN_DELAY = 120 
 
 current_date = datetime.now().strftime('%Y-%m-%d')
 OUTPUT_DIR = DATA_PERFORMANCE_DIR / "yahoo_finance" / current_date

@@ -19,14 +19,14 @@ logger = setup_logger("05_sync_Orchestrator")
 # 2. DEFINE PIPELINES
 # ==========================================
 
-# กลุ่มที่ 1: Scrapers (จะสั่งรันพร้อมกันแบบ Parallel)
+
 SCRAPER_GROUP = [
     {"name": "FT List Scraper",      "path": "src/01_master_list_acquisition/01_ft_list_scraper.py"},
     {"name": "YF List Scraper",      "path": "src/01_master_list_acquisition/02_yf_list_scraper.py"},
     {"name": "SA List Scraper",      "path": "src/01_master_list_acquisition/03_sa_list_scraper.py"},
 ]
 
-# กลุ่มที่ 2: ETL Pipeline (ต้องรันเรียงลำดับ Sequential)
+
 ETL_PIPELINE = [
     {"name": "00 Data Cleaner",         "path": "src/05_db_synchronization/01_master_sync/00_master_list_cleaner.py"},
     {"name": "01 Source Consolidator",  "path": "src/05_db_synchronization/01_master_sync/01_source_consolidator.py"},
@@ -47,12 +47,11 @@ def get_env():
     return env
 
 def run_scrapers_in_parallel():
-    """รัน Scraper ทุกตัวพร้อมกัน และรอจนกว่าจะเสร็จทั้งหมด"""
     logger.info(f"⚡ STARTING PHASE 1: Scrapers (Parallel Mode - {len(SCRAPER_GROUP)} tasks)")
     
     processes = []
     
-    # 1. เริ่มรันทุกตัวพร้อมกัน (Fire and Forget)
+    
     for script in SCRAPER_GROUP:
         full_path = BASE_DIR / script["path"]
         if not full_path.exists():
@@ -61,19 +60,19 @@ def run_scrapers_in_parallel():
             
         logger.info(f"   ▶️  Launching: {script['name']}...")
         
-        # Popen คือกุญแจสำคัญที่ทำให้รันแบบไม่รอ (Non-blocking)
+        
         try:
             p = subprocess.Popen(
                 [sys.executable, str(full_path)],
                 env=get_env(),
-                # stdout=subprocess.DEVNULL, # ปิด Log ลูกน้องไม่ให้รกหน้าจอหลัก (เปิดได้ถ้าอยากเห็น)
+                
                 # stderr=subprocess.PIPE
             )
             processes.append({"name": script["name"], "process": p})
         except Exception as e:
             logger.error(f"❌ Failed to launch {script['name']}: {e}")
 
-    # 2. รอจนกว่าทุกตัวจะเสร็จ (Wait)
+    
     logger.info("⏳ Waiting for all scrapers to finish...")
     success_count = 0
     
@@ -81,7 +80,7 @@ def run_scrapers_in_parallel():
         p = item["process"]
         name = item["name"]
         
-        # รอตรงนี้
+        
         return_code = p.wait()
         
         if return_code == 0:
@@ -93,7 +92,6 @@ def run_scrapers_in_parallel():
     return success_count
 
 def run_etl_sequentially():
-    """รัน ETL ทีละตัวตามลำดับ"""
     logger.info(f"🔄 STARTING PHASE 2: ETL Pipeline (Sequential Mode)")
     
     for script in ETL_PIPELINE:
@@ -108,7 +106,7 @@ def run_etl_sequentially():
         start = time.time()
         
         try:
-            # ใช้ run เพื่อรอให้จบก่อนไปตัวถัดไป (Blocking)
+            
             subprocess.run([sys.executable, str(full_path)], check=True, env=get_env())
             logger.info(f"   ✅ Success: {name} ({round(time.time() - start, 2)}s)")
         except subprocess.CalledProcessError:
@@ -127,7 +125,7 @@ def main():
     # --- PHASE 1: ACQUISITION ---
     scrapers_success = run_scrapers_in_parallel()
     
-    # เช็คว่ามี Scraper สำเร็จบ้างไหม (ถ้าพังหมดเลย อาจจะไม่ควรทำ ETL ต่อ หรือแล้วแต่นโยบาย)
+    
     if scrapers_success == 0:
         logger.warning("⚠️ All scrapers failed or none ran. Proceeding to ETL with existing data (if any).")
     

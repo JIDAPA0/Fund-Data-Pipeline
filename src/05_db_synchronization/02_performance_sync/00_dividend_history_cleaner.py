@@ -1,7 +1,6 @@
 import sys
 import os
 import pandas as pd
-from datetime import datetime
 from pathlib import Path
 
 current_file = Path(__file__).resolve()
@@ -10,9 +9,8 @@ while not (project_root / 'src').exists():
     project_root = project_root.parent
 sys.path.append(str(project_root))
 
-TIMESTAMP = datetime.now().strftime('%Y-%m-%d')
 DATA_DIR = project_root / "validation_output"
-STAGING_DIR = project_root / "data" / "03_staging" / "dividend_history" / TIMESTAMP
+STAGING_DIR = project_root / "data" / "03_staging" / "dividend_history"
 
 SOURCES = {
     'stock': DATA_DIR / "Stock_Analysis" / "02_Price_And_Dividend_History" / "Dividend_History",
@@ -30,12 +28,12 @@ def clean_dvd():
                 df = pd.read_csv(f)
                 df.columns = [c.strip().lower() for c in df.columns]
                 
-                # แทรกคอลัมน์ระบุตัวตน
+                
                 df.insert(0, 'source', 'Stock Analysis' if skey == 'stock' else 'Yahoo Finance')
                 df.insert(0, 'asset_type', 'ETF' if 'etf' in str(f).lower() else 'FUND')
                 df.insert(0, 'ticker', f.stem.split('_')[0].upper())
                 
-                # มาตรฐานวันที่ (ex_date)
+                
                 date_col = next((c for c in ['date', 'ex_date'] if c in df.columns), None)
                 if date_col:
                     df[date_col] = pd.to_datetime(df[date_col], errors='coerce').dt.strftime('%Y-%m-%d')

@@ -8,7 +8,7 @@ import time
 from playwright.async_api import async_playwright, TimeoutError
 from typing import List, Dict, Any, Set
 from dotenv import load_dotenv
-import psycopg2 # เพิ่มตัวนี้เพื่อยิง SQL โดยตรง
+import psycopg2 
 
 # --- 🛠️ SETUP PATH & IMPORTS ------------------------------------------------
 current_file = Path(__file__).resolve()
@@ -36,7 +36,7 @@ if not SA_EMAIL or not SA_PASSWORD:
     print("❌ FATAL ERROR: Missing SA_EMAIL or SA_PASSWORD in .env")
     exit(1)
 
-# Config Database (โหลดมาเพื่อยิง Query เอง)
+
 DB_HOST = os.getenv("DB_HOST")
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
@@ -62,7 +62,6 @@ def get_processed_tickers(target_dir: Path) -> Set[str]:
     return processed_tickers
 
 def fetch_tickers_direct_from_db():
-    """ฟังก์ชันยิง SQL ตรง เพื่อดึง Ticker ของ Stock Analysis โดยไม่สน Asset Type"""
     print("🔌 Connecting to Database directly...")
     conn = None
     tickers = []
@@ -76,13 +75,13 @@ def fetch_tickers_direct_from_db():
         )
         cur = conn.cursor()
         
-        # --- 🎯 SQL Query: เอาเฉพาะ Source='Stock Analysis' ไม่สน Type ---
+        
         sql = "SELECT ticker FROM stg_security_master WHERE source = 'Stock Analysis'"
         
         cur.execute(sql)
         rows = cur.fetchall()
         
-        # แปลงผลลัพธ์เป็น List ธรรมดา
+        
         tickers = [row[0] for row in rows]
         print(f"✅ Query Success: Found {len(tickers)} tickers.")
         
@@ -199,7 +198,7 @@ async def main():
     TODAY_DIR = BASE_OUTPUT_DIR / today_str
     TODAY_DIR.mkdir(parents=True, exist_ok=True)
     
-    # --- ใช้ฟังก์ชันใหม่ ยิง DB โดยตรง ไม่ง้อ Asset Type ---
+    
     all_tickers = fetch_tickers_direct_from_db()
     
     if not all_tickers:

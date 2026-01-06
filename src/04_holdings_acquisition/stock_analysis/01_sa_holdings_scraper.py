@@ -11,22 +11,22 @@ from playwright.async_api import async_playwright, TimeoutError
 from typing import List, Dict, Any, Set
 
 # --- ⚙️ CONFIGURATION ---------------------------------------------------------
-# Path ไฟล์ Input (Master List)
+
 INPUT_CSV_PATH = "validation_output/Stock_Analysis/01_List_Master/2025-12-03/sa_etf_master.csv"
 
-# Path หลักสำหรับ Output
+
 BASE_OUTPUT_DIR = Path("validation_output/Stock_Analysis/04_Holdings")
 
 # Base URL
 BASE_URL = "https://stockanalysis.com/etf/"
 
-# 🎯 BATCH_SIZE (ใช้เพื่อกำหนดจำนวน Ticker ในแต่ละรอบการ Login)
+
 BATCH_SIZE = 500 
 
-# 🚀 NEW: CONCURRENCY SETTING (จำนวน Ticker ที่จะรันพร้อมกัน)
-MAX_CONCURRENT_TICKERS = 4 # เริ่มต้นที่ 4-5 ตัว หากเครื่องไหว ให้เพิ่มได้
 
-# --- INI Config Reader (ใช้โค้ดเดิม) --------------------------------
+MAX_CONCURRENT_TICKERS = 4 
+
+
 def get_config(filename='config/database.ini', section='stock_analysis'):
     parser = configparser.ConfigParser()
     if not os.path.exists(filename):
@@ -52,9 +52,8 @@ PASS = CONFIG.get('password')
 
 # --- Utility Functions ----------------------------------------------------
 
-# 🛠️ ฟังก์ชันสำหรับตรวจสอบ Tickers ที่เคยโหลดแล้ว (รันต่อ)
+
 def get_processed_tickers(target_dir: Path) -> Set[str]:
-    """ตรวจสอบไฟล์ CSV ที่มีอยู่แล้วในโฟลเดอร์ Output"""
     if not target_dir.exists():
         return set()
     
@@ -68,20 +67,19 @@ def get_processed_tickers(target_dir: Path) -> Set[str]:
             
     return processed_tickers
 
-# 🛠️ Login Function (ปรับปรุงสำหรับ Persistent Context)
+
 async def login_to_sa(page):
-    """Login เข้าสู่ระบบ"""
     print(f"🔐 Attempting Login as {EMAIL}...")
     try:
         await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
         
-        # ตรวจสอบว่าอยู่หน้า Login หรือไม่
+        
         if "login" in page.url:
             await page.fill('input[type="email"]', EMAIL)
             await page.fill('input[type="password"]', PASS)
             await page.keyboard.press("Enter")
             
-            # รอยืนยันว่าออกจากหน้า Login แล้ว
+            
             await page.wait_for_url(lambda url: "login" not in url, timeout=30000)
             
             if "login" not in page.url:
@@ -91,7 +89,7 @@ async def login_to_sa(page):
                 print("❌ Login Failed (Still on login page)")
                 return False 
         else:
-            # อาจจะ Login ค้างไว้แล้ว
+            
             print("✅ Session already authenticated or not required.")
             return True
 
@@ -101,7 +99,6 @@ async def login_to_sa(page):
 
 
 async def download_holdings(page, ticker, target_dir):
-    """เข้าไปหน้า Holdings แล้วกด Download CSV ลงโฟลเดอร์ที่กำหนด"""
     url = f"{BASE_URL}{ticker.lower()}/holdings/"
     save_path = target_dir / f"{ticker}_holdings.csv" 
     
@@ -136,7 +133,6 @@ async def download_holdings(page, ticker, target_dir):
     return False
 
 def generate_report(output_dir, start_time, total, success, skipped):
-    """สร้าง Report สรุปผล (โค้ดเดิม)"""
     end_time = time.time()
     minutes = int((end_time - start_time) // 60)
     seconds = (end_time - start_time) % 60
@@ -161,13 +157,12 @@ def generate_report(output_dir, start_time, total, success, skipped):
 
 # 🛠️ NEW: Worker function for concurrent processing
 async def worker(ticker: str, context, TODAY_DIR: Path, all_tickers: List[str], counters: Dict[str, Any]):
-    """ฟังก์ชัน Worker ที่ทำงานในแต่ละ Ticker (ใช้ Concurrency)"""
     
-    # ⚠️ สำคัญ: ต้องสร้าง page ใหม่สำหรับแต่ละ worker
+    
     page = await context.new_page()
     
     try:
-        # 🔒 ใช้ Lock เพื่ออัปเดตตัวนับอย่างปลอดภัย
+        
         async with counters['lock']:
             counters['total_count'] += 1
             current_index = counters['total_count']
@@ -193,19 +188,19 @@ async def worker(ticker: str, context, TODAY_DIR: Path, all_tickers: List[str], 
         await page.close()
 
 
-# --- MAIN LOGIC (ใช้ Persistent Context และ Concurrency) -----------------------
+
 async def main():
     print("\n--- 🚀 STARTING HOLDINGS DOWNLOADER (SPEED MODE) ---")
     start_time = time.time()
     
-    # 1. สร้างโฟลเดอร์วันที่
+    
     today_str = datetime.now().strftime('%Y-%m-%d')
     TODAY_DIR = BASE_OUTPUT_DIR / today_str
     TODAY_DIR.mkdir(parents=True, exist_ok=True)
     
     print(f"📂 Target Folder Created: {TODAY_DIR}") 
 
-    # 2. Load Tickers และตรวจสอบ Tickers ที่ทำสำเร็จแล้ว
+    
     try:
         df = pd.read_csv(INPUT_CSV_PATH)
         all_tickers = df['ticker'].tolist()
@@ -224,9 +219,9 @@ async def main():
         print(f"❌ Error reading Master CSV: {e}")
         return
 
-    # 3. เตรียม Counters และ Lock สำหรับ Parallel Run
+    
     counters = {
-        'total_count': len(processed_tickers), # เริ่มนับจากจำนวนที่ทำไปแล้ว
+        'total_count': len(processed_tickers), 
         'success_count': 0,
         'skipped_count': 0,
         'lock': asyncio.Lock()
@@ -234,7 +229,7 @@ async def main():
     initial_processed_count = len(processed_tickers)
     
     async with async_playwright() as p:
-        # 🚀 ใช้ Persistent Context เพื่อ Login ครั้งเดียว
+        
         user_data_dir = "./tmp/sa_session"
         context = await p.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
@@ -242,7 +237,7 @@ async def main():
             accept_downloads=True
         )
 
-        # 4. Login หรือตรวจสอบ Session (ใช้เพียงครั้งเดียว)
+        
         page = await context.new_page()
         if not await login_to_sa(page):
             await context.close()
@@ -252,18 +247,18 @@ async def main():
 
         print(f"\n--- Starting Data Acquisition with {MAX_CONCURRENT_TICKERS} workers ---")
 
-        # 5. รัน Tickers ทั้งหมดโดยใช้ Concurrency
+        
         tasks = []
         for ticker in tickers_to_process:
             tasks.append(worker(ticker, context, TODAY_DIR, all_tickers, counters))
 
-        # 6. ประมวลผล Batch ตาม Concurrency Limit
+        
         for i in range(0, len(tasks), MAX_CONCURRENT_TICKERS):
             batch = tasks[i:i + MAX_CONCURRENT_TICKERS]
             await asyncio.gather(*batch)
             
-            # 💡 ไม่ต้องมี Delay ระหว่าง Batch เพราะใช้ Concurrency จัดการอยู่แล้ว
-            # แต่สามารถใส่ delay เล็กน้อยเพื่อป้องกัน CPU Overload
+            
+            
             # await asyncio.sleep(0.5) 
 
         await context.close()

@@ -173,7 +173,7 @@ class FTFeesScraper:
 
     async def process_ticker(self, session, item, semaphore):
         ticker = item['ticker']
-        asset_type = item['asset_type'] # รับ asset_type จาก input
+        asset_type = item['asset_type'] 
         
         async with semaphore:
             summary_res, holdings_res = await asyncio.gather(
@@ -181,17 +181,17 @@ class FTFeesScraper:
                 self.get_holdings_data(session, ticker)
             )
             
-            # 🟢 FORCE SAVE: เก็บข้อมูลทุกตัว แม้จะหาไม่เจอ (ค่าจะเป็น None)
+            
             result = {
                 "ticker": ticker,
                 "asset_type": asset_type,
                 "source": "Financial Times",
-                "name": summary_res.get('name'),  # ชื่อจากหน้าเว็บ
-                **summary_res,  # ข้อมูล Fees/AUM (อาจทับ name แต่ไม่เป็นไรเพราะเหมือนกัน)
-                **holdings_res  # ข้อมูล Holdings
+                "name": summary_res.get('name'),  
+                **summary_res,  
+                **holdings_res  
             }
             
-            # ไม่มีการเช็ค if has_data แล้ว return None -> ส่ง result กลับเสมอ
+            
             return result
 
     async def scrape_batch(self, batch_tickers):
@@ -201,13 +201,13 @@ class FTFeesScraper:
             sem = asyncio.Semaphore(CONCURRENCY)
             tasks = [self.process_ticker(session, t, sem) for t in batch_tickers]
             results = await asyncio.gather(*tasks)
-            return results # ส่งกลับทั้งหมด ไม่ต้อง filter
+            return results 
 
     def save_incremental(self, results):
         if not results: return
         df = pd.DataFrame(results)
         
-        # เพิ่มคอลัมน์ที่ต้องการให้ครบ
+        
         desired_order = [
             'ticker', 'asset_type', 'source', 'name',
             'expense_ratio', 'initial_charge', 'exit_charge', 

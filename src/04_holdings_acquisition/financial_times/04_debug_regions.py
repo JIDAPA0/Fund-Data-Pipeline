@@ -5,7 +5,7 @@ import pandas as pd
 import re
 from datetime import datetime
 
-# กองทุนเป้าหมาย
+
 TEST_TICKER = "LU0385659072:EUR"
 
 async def scrape_regions_smart():
@@ -15,25 +15,25 @@ async def scrape_regions_smart():
     url = f"https://markets.ft.com/data/funds/tearsheet/holdings?s={TEST_TICKER}"
     
     async with async_playwright() as p:
-        # เปิด Browser (Headless = True คือไม่โชว์หน้าจอ)
+        
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         
         try:
-            # 1. ไปที่หน้าเว็บ
+            
             print("1️⃣ Loading Page...")
             await page.goto(url, timeout=60000)
             
-            # 2. คลิกปุ่ม Regions (ใช้ Selector ที่แม่นยำที่สุด)
+            
             print("2️⃣ Clicking 'Regions' Tab...")
-            # ใช้ force=True เพื่อบังคับกดแม้จะมีอะไรบัง
+            
             await page.click('li[aria-controls="regions-panel"]', force=True)
             
-            # 3. 🔥 SMART WAIT: รอจนกว่าจะเจอคำว่า Region/Market/Country ในตาราง
+            
             print("3️⃣ Waiting for 'Regions' Data to appear...")
             
-            # Selector นี้หมายความว่า: หา <th> ที่มีคำว่า Region หรือ Market หรือ Country อยู่ข้างใน
-            # บอทจะรอตรงนี้สูงสุด 15 วินาที ถ้าไม่มาจะ Error (ดีกว่าได้ข้อมูลผิด)
+            
+            
             try:
                 await page.wait_for_selector(
                     '#regions-panel th:has-text("Region"), #regions-panel th:has-text("Market"), #regions-panel th:has-text("Country")', 
@@ -43,8 +43,8 @@ async def scrape_regions_smart():
             except Exception:
                 print("⚠️ Warning: Wait timed out. Data might not be available or slow.")
             
-            # 4. ดึง HTML
-            # ดึงเฉพาะกล่อง Regions มาเลย
+            
+            
             content_html = await page.inner_html('#regions-panel')
             print("✅ Data Loaded! Parsing...")
             
@@ -57,7 +57,7 @@ async def scrape_regions_smart():
                 headers = [th.text.strip().lower() for th in table.find_all('th')]
                 print(f"   🔎 Found Headers: {headers}")
                 
-                # เช็คอีกรอบเพื่อความชัวร์
+                
                 if any(k in headers for k in ['region', 'market', 'country']):
                     print("   🎉 JACKPOT! Found Regions Table.")
                     

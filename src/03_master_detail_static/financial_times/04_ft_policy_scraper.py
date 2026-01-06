@@ -62,7 +62,7 @@ class FTPolicyScraper:
     def _extract_val(self, text):
         """Clean value: remove HTML tags, commas, spaces"""
         if not text: return None
-        # ลบ HTML tags ถ้ามี (เช่น <span class="...">+3.87%</span>)
+        
         clean = re.sub(r'<[^>]+>', '', str(text))
         clean = clean.strip()
         if clean == '--' or clean == '-': return None
@@ -84,11 +84,11 @@ class FTPolicyScraper:
         is_etf = 'ETF' in str(asset_type).upper()
         base_type = 'etfs' if is_etf else 'funds'
         
-        # 1. Main Page (HTML) -> สำหรับ 1 Year
+        
         main_url = f"https://markets.ft.com/data/{base_type}/tearsheet/performance?s={ticker}"
         
-        # 2. API URL (JSON) -> สำหรับ YTD (ใช้ API เทพที่คุณหามา)
-        # Note: API นี้ใช้ /funds/ajax/... ได้ทั้ง Fund และ ETF
+        
+        
         api_url = f"https://markets.ft.com/data/funds/ajax/trailing-total-returns?chartType=annual&symbol={ticker}"
         
         return main_url, api_url
@@ -109,14 +109,13 @@ class FTPolicyScraper:
         return None
 
     def _extract_1y_from_html(self, html):
-        """แกะ 1 Year จาก HTML ตาราง Trailing returns"""
         if not html: return None
         soup = BeautifulSoup(html, 'lxml')
         tables = soup.find_all('table')
         
         for table in tables:
             headers = [th.text.strip().lower() for th in table.find_all('th')]
-            # หา Index ของ '1 year'
+            
             target_idx = -1
             for i, h in enumerate(headers):
                 if '1 year' in h and '3 year' not in h:
@@ -124,31 +123,30 @@ class FTPolicyScraper:
                     break
             
             if target_idx != -1:
-                # หา Row แรกที่เป็น Data
+                
                 rows = table.find_all('tr')
                 for r in rows:
                     if r.find('th'): continue
                     cols = r.find_all('td')
                     if len(cols) > target_idx:
-                        # กรองแถวที่ไม่ใช่กองทุน
+                        
                         first_text = cols[0].text.strip().lower()
                         if "quartile" not in first_text and "category" not in first_text:
                             return self._extract_val(cols[target_idx].text)
         return None
 
     def _extract_ytd_from_json(self, json_text):
-        """แกะ YTD จาก JSON API Response"""
         if not json_text: return None
         try:
             data_raw = json.loads(json_text)
             if 'data' in data_raw and 'chartData' in data_raw['data']:
-                # chartData เป็น string JSON ซ้อนอยู่ ต้อง parse อีกรอบ
+                
                 chart_data = json.loads(data_raw['data']['chartData'])
                 
                 headers = chart_data.get('headers', [])
                 values = chart_data.get('data', [])
                 
-                # หา index ของ "YTD"
+                
                 ytd_idx = -1
                 for i, h in enumerate(headers):
                     if h == 'YTD':
@@ -156,7 +154,7 @@ class FTPolicyScraper:
                         break
                 
                 if ytd_idx != -1 and ytd_idx < len(values):
-                    # ดึงค่า fundPerformance
+                    
                     raw_val = values[ytd_idx].get('fundPerformance')
                     return self._extract_val(raw_val) # Clean HTML tags if any
         except:

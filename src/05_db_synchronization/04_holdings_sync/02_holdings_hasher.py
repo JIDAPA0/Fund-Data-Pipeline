@@ -8,9 +8,8 @@ sys.path.append(str(BASE_DIR))
 
 from src.utils.hasher import calculate_row_hash
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
-STAGING_DIR = BASE_DIR / "data" / "03_staging" / "holdings" / TODAY
-HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "holdings" / TODAY
+STAGING_DIR = BASE_DIR / "data" / "03_staging" / "holdings"
+HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "holdings"
 HASHED_DIR.mkdir(parents=True, exist_ok=True)
 
 FILES = {

@@ -9,7 +9,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
 
-# ลอง import yfinance
+
 try:
     import yfinance as yf
     HAS_YFINANCE = True
@@ -36,7 +36,7 @@ from src.utils.logger import setup_logger, log_execution_summary
 # ==========================================
 load_dotenv()
 current_date = datetime.now().strftime('%Y-%m-%d')
-# 📂 แยกเก็บในโฟลเดอร์ Dividend_History/etf
+
 OUTPUT_DIR = VAL_YF_HIST / "Dividend_History" / current_date / ASSET_TYPE
 ERROR_SCREENSHOT_DIR = OUTPUT_DIR / "errors_screenshots"
 ERROR_SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
@@ -48,18 +48,17 @@ logger = setup_logger("YF_ETF_Dividend_Scraper")
 # ==========================================
 
 def download_via_yfinance(ticker):
-    """ทางง่าย: ใช้ Library ดึงเฉพาะ Dividend"""
     if not HAS_YFINANCE: return None
     try:
         t = yf.Ticker(ticker)
         divs = t.dividends
         
         if not divs.empty:
-            # แปลง Series เป็น DataFrame
+            
             df = divs.reset_index()
             df.columns = ['Date', 'Dividend']
             
-            # จัด Format วันที่
+            
             df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
             return df
     except Exception as e:
@@ -67,14 +66,13 @@ def download_via_yfinance(ticker):
     return None
 
 async def download_via_direct_api(context, ticker):
-    """ทางถึก: ยิง Link 'events=div'"""
     page = await context.new_page()
     await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2}", lambda route: route.abort())
     
     final_df = None
     try:
         current_timestamp = int(time.time())
-        # 🎯 URL สูตรพิเศษ: events=div
+        
         download_url = (
             f"https://query1.finance.yahoo.com/v7/finance/download/{ticker}?"
             f"period1=0&period2={current_timestamp}&"
@@ -111,10 +109,10 @@ async def process_ticker(context, ticker, progress_str):
     final_df = None
     status = "no_div"
     
-    # 1. ลองทางง่าย (yfinance)
+    
     final_df = download_via_yfinance(ticker)
     
-    # 2. ถ้าทางง่ายไม่เจอ ลองทางถึก (Direct API)
+    
     if final_df is None or final_df.empty:
         final_df = await download_via_direct_api(context, ticker)
     
@@ -167,7 +165,7 @@ async def main():
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 
-        # 🔥 Concurrency = 4 (ETF อาจมีปันผลเยอะกว่า Fund หน่อย แต่ 4 จอยังไหวสบายๆ)
+        
         semaphore = asyncio.Semaphore(4)
 
         async def worker(t, idx):

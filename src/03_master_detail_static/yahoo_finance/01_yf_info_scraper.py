@@ -42,13 +42,13 @@ class YFIdentityScraper:
             await page.goto(url, wait_until="domcontentloaded", timeout=60000)
             await asyncio.sleep(4)
 
-            # 1. ดึง Exchange จากคลาสที่มีคำว่า exchange
+            
             exchange_loc = page.locator('span[class*="exchange"]')
             if await exchange_loc.count() > 0:
                 raw_ex = await exchange_loc.first.inner_text()
                 data["exchange"] = raw_ex.split(" - ")[0].strip() if raw_ex else None
 
-            # 2. ดึงข้อมูลจากตารางแบบ Key-Value
+            
             rows = await page.locator("table tr").all()
             for row in rows:
                 text = await row.inner_text()

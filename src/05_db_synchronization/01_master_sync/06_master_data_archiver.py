@@ -23,8 +23,8 @@ def archive_daily_files():
     logger.info("📦 STARTING MASTER DATA ARCHIVER (All Stages)")
     
     # ==============================================================================
-    # 📝 [POINT OF CHANGE] เปลี่ยนชื่อโฟลเดอร์ตรงนี้ครับ
-    # จาก "master_list" -> "01_master_sync"
+    
+    
     # ==============================================================================
     archive_root = DATA_STORE_DIR / "archive" / "01_master_sync" / today_str
     archive_root.mkdir(parents=True, exist_ok=True)

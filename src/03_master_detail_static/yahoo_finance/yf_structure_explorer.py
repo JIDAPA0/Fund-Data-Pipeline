@@ -10,16 +10,16 @@ async def explore_risk_page(ticker="OSOL"):
         
         try:
             await page.goto(f"https://finance.yahoo.com/quote/{ticker}/risk", wait_until="domcontentloaded")
-            await asyncio.sleep(7) # รอให้ตาราง Render นานขึ้นหน่อย
+            await asyncio.sleep(7) 
 
-            # 1. เช็คว่ามี Table ไหม และ Table อยู่ภายใต้ ID/Class อะไร
+            
             tables = page.locator("table")
             t_count = await tables.count()
             print(f"📊 พบตาราง {t_count} ตาราง")
 
             for i in range(t_count):
                 table = tables.nth(i)
-                # ดึง 2 แถวแรกมาดูโครงสร้าง Tag
+                
                 rows = await table.locator("tr").all()
                 if rows:
                     print(f"\n--- ตารางที่ {i+1} ---")
@@ -27,10 +27,10 @@ async def explore_risk_page(ticker="OSOL"):
                         row_html = await rows[j].inner_html()
                         row_text = await rows[j].inner_text()
                         print(f"Row {j+1} Text: {row_text.replace('\n', ' | ')}")
-                        # พี่อยากดูว่ามันใช้ <td> หรือ <div> ข้างใน
+                        
                         print(f"Row {j+1} HTML Snippet: {row_html[:150]}...")
 
-            # 2. เช็คว่ามันซ่อนอยู่ใน Section ชื่ออะไร
+            
             sections = page.locator('section')
             s_count = await sections.count()
             print(f"\n📂 พบ Section ทั้งหมด {s_count} ส่วน")
@@ -44,4 +44,4 @@ async def explore_risk_page(ticker="OSOL"):
             await browser.close()
 
 if __name__ == "__main__":
-    asyncio.run(explore_risk_page("SPY")) # ลอง SPY เพราะข้อมูลน่าจะเยอะกว่า
+    asyncio.run(explore_risk_page("SPY")) 

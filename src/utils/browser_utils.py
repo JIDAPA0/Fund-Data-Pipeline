@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict, Any
 
 # ==============================================================================
-# 1. MASSIVE USER-AGENT POOL (ครบชุด 50+ เหมือนเดิม)
+
 # ==============================================================================
 USER_AGENTS = [
     # --- Windows 10/11 (Chrome, Edge, Firefox) ---
@@ -46,11 +46,9 @@ USER_AGENTS = [
 ]
 
 def get_random_user_agent():
-    """สุ่ม User-Agent 1 ค่า"""
     return random.choice(USER_AGENTS)
 
 def get_random_headers():
-    """สร้าง Headers แบบสุ่มสำหรับ requests/aiohttp"""
     return {
         "User-Agent": get_random_user_agent(),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -65,7 +63,7 @@ def get_random_headers():
     }
 
 # ==============================================================================
-# 2. PLAYWRIGHT CONFIGURATION (ตั้งค่า Browser แบบ Stealth)
+
 # ==============================================================================
 def get_launch_args(headless: bool = False) -> Dict[str, Any]:
     return {
@@ -123,11 +121,8 @@ async def mimic_reading(page, min_sec=2, max_sec=5):
 # 4. COOKIE KILLER (⚡️ IFRAME PIERCING MODE ⚡️)
 # ==============================================================================
 async def dismiss_cookie_banner(page):
-    """
-    🍪 ท่าไม้ตายใหม่: หาปุ่มทั้งในหน้าหลัก AND ในทุก IFRAME
-    """
-    # รวม Selector ทุกรูปแบบที่เป็นไปได้
-    # เพิ่ม class 'sp_choice_type_11' ที่คุณเจอมาแล้ว
+    
+    
     selectors = [
         'button[title="Accept Cookies"]',
         'button[aria-label="Accept Cookies"]',
@@ -139,14 +134,14 @@ async def dismiss_cookie_banner(page):
         'button:has-text("Allow all")'
     ]
 
-    # ฟังก์ชันย่อย: ลองกดปุ่มใน Context ที่ส่งมา (Page หรือ Frame)
+    
     async def try_click_in_context(context):
         for selector in selectors:
             try:
-                # หาปุ่มแรกที่เจอ
+                
                 btn = context.locator(selector).first
                 if await btn.is_visible():
-                    # เจอปุ๊บ กดปั๊บ ไม่รอ
+                    
                     await btn.click(timeout=1000)
                     return True
             except:
@@ -154,11 +149,11 @@ async def dismiss_cookie_banner(page):
         return False
 
     try:
-        # 1. ลองหาในหน้าหลักก่อน
+        
         if await try_click_in_context(page):
             return True
 
-        # 2. 🔥 ทีเด็ด: วนลูปหาในทุก IFRAME (เพราะ FT ชอบซ่อนในนี้)
+        
         for frame in page.frames:
             if await try_click_in_context(frame):
                 return True

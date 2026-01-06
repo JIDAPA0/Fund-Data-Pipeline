@@ -35,7 +35,7 @@ class FTRegionScraper:
 
     def _get_url(self, ticker, asset_type):
         base = 'etfs' if 'ETF' in str(asset_type).upper() else 'funds'
-        # กลับมาใช้ URL หน้าปกติ เพราะข้อมูลซ่อนอยู่ใน HTML หน้านี้
+        
         return f"https://markets.ft.com/data/{base}/tearsheet/holdings?s={ticker}"
 
     async def fetch(self, session, url):
@@ -51,7 +51,7 @@ class FTRegionScraper:
         data = []
         as_of_date = None
         
-        # 1. หา As of Date (จาก footer เหมือนเดิม)
+        
         footer = soup.find(string=re.compile(r'As of\s+[A-Za-z]{3}'))
         if footer: 
             try:
@@ -59,30 +59,30 @@ class FTRegionScraper:
                 as_of_date = dt.strftime("%Y-%m-%d")
             except: pass
 
-        # 2. 🔥 NEW LOGIC: หา JSON ที่ซ่อนอยู่ใน HoldingsApp
-        # นี่คือจุดสำคัญ! ข้อมูลทั้งหมดอยู่ใน attribute 'data-json' ของ div นี้
+        
+        
         app_div = soup.find('div', attrs={'data-module-name': 'HoldingsApp'})
         
         if app_div and app_div.has_attr('data-json'):
             try:
                 json_data = json.loads(app_div['data-json'])
                 
-                # โครงสร้าง JSON ของ FT มักจะเป็น:
+                
                 # {
                 #    "weightings": {
                 #        "regions": [ ... ],
                 #        "sectors": [ ... ]
                 #    }
                 # }
-                # หรือบางทีอาจจะอยู่ลึกกว่านั้น แต่ส่วนใหญ่ key คือ 'weightings'
+                
                 
                 if 'weightings' in json_data and 'regions' in json_data['weightings']:
                     regions_list = json_data['weightings']['regions']
                     
                     for item in regions_list:
-                        # item หน้าตาประมาณ: {"name": "Americas", "weight": 60.66, "categoryAverage": 66.54}
+                        
                         name = item.get('name')
-                        val_net = item.get('formattedWeight') or str(item.get('weight', '')) # บางทีเป็นตัวเลขดิบ
+                        val_net = item.get('formattedWeight') or str(item.get('weight', '')) 
                         val_cat = item.get('formattedCategoryAverage') or str(item.get('categoryAverage', ''))
                         
                         if name and val_net:
@@ -94,9 +94,9 @@ class FTRegionScraper:
                             })
                             
             except Exception as e:
-                pass # ถ้าแกะ JSON ไม่ได้ ให้ข้ามไปลองวิธี HTML
+                pass 
         
-        # 3. Fallback: ถ้าแกะ JSON ไม่เจอ ลองหาจาก HTML ตารางปกติ (เผื่อบางกองทุนโครงสร้างต่าง)
+        
         if not data:
             for table in soup.find_all('table'):
                 headers = [th.text.strip().lower() for th in table.find_all('th')]
@@ -127,7 +127,7 @@ class FTRegionScraper:
     async def process_ticker(self, session, item, sem):
         ticker, atype = item['ticker'], item['asset_type']
         
-        # ✅ FIX: แก้ชื่อไฟล์ (กัน Error /)
+        
         safe_ticker = ticker.replace(':', '_').replace('/', '_')
         fname = OUTPUT_DIR / f"{safe_ticker}_{atype}_regions.csv"
         

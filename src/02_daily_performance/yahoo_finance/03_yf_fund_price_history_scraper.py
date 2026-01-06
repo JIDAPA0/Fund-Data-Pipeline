@@ -9,7 +9,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
 
-# ลอง import yfinance (ทางง่าย)
+
 try:
     import yfinance as yf
     HAS_YFINANCE = True
@@ -25,7 +25,7 @@ project_root = os.path.abspath(os.path.join(current_dir, "../../.."))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-# เปลี่ยน ASSET_TYPE เป็น 'fund' หรือ 'etf' ตามที่คุณต้องการ
+
 ASSET_TYPE = 'fund' 
 
 from src.utils.path_manager import VAL_YF_HIST, VAL_YF_MASTER
@@ -47,24 +47,23 @@ logger = setup_logger("YF_Hybrid_Scraper")
 # ==========================================
 
 def download_via_yfinance(ticker):
-    """ทางง่าย: ใช้ Library ดึงข้อมูล (เร็วมาก/ไม่ต้องง้อปุ่ม)"""
     if not HAS_YFINANCE: return None
     try:
         logger.info(f"⚡ Using yfinance library for {ticker}...")
-        # period="max" คือเอาตั้งแต่วันแรก
+        
         df = yf.download(ticker, period="max", progress=False, auto_adjust=False)
         
         if not df.empty:
-            # จัด Format ให้เหมือนไฟล์ CSV ปกติ
+            
             df = df.reset_index()
-            # แปลงวันที่เป็น format มาตรฐาน
+            
             df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
-            # เลือกเฉพาะ Column ที่ต้องการ
+            
             cols = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-            # yfinance อาจคืนค่า MultiIndex หรือชื่อไม่ตรง ต้องระวัง
+            
             df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
             
-            # กรองเอาเฉพาะที่มี
+            
             available_cols = [c for c in cols if c in df.columns]
             return df[available_cols]
     except Exception as e:
@@ -72,9 +71,8 @@ def download_via_yfinance(ticker):
     return None
 
 async def scrape_table_via_playwright(context, ticker):
-    """ทางถึก: เปิด Browser ไปกวาดตาราง (ช้าหน่อยแต่มั่นใจ)"""
     page = await context.new_page()
-    # บล็อกรูปเพื่อความเร็ว
+    
     await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,css,woff,woff2}", lambda route: route.abort())
     
     data = []
@@ -87,14 +85,14 @@ async def scrape_table_via_playwright(context, ticker):
         if "Just a moment" in await page.title():
              await asyncio.sleep(15)
         
-        # Scroll Loop (เลื่อนลงเพื่อโหลดข้อมูลเพิ่ม)
-        # Yahoo ใช้ Infinite Scroll ต้องเลื่อนลงเรื่อยๆ
-        # ⚠️ หมายเหตุ: ถ้าข้อมูล 20 ปี อาจจะต้อง Scroll นานมาก ผมตั้ง Limit ไว้ที่ 50 รอบเพื่อไม่ให้ค้าง
+        
+        
+        
         last_height = await page.evaluate("document.body.scrollHeight")
         retries = 0
         
-        # ลอง Scroll สัก 20-30 ครั้ง (ได้ข้อมูลประมาณ 2-3 ปีย้อนหลัง)
-        # ถ้าอยากได้หมดจริงๆ ต้องเพิ่ม loop แต่จะช้ามาก
+        
+        
         for i in range(30): 
             await page.keyboard.press("End")
             await asyncio.sleep(1.0)
@@ -102,31 +100,31 @@ async def scrape_table_via_playwright(context, ticker):
             new_height = await page.evaluate("document.body.scrollHeight")
             if new_height == last_height:
                 retries += 1
-                if retries >= 3: break # ถ้าเลื่อนแล้วไม่ไปไหน 3 รอบ ให้พอ
+                if retries >= 3: break 
             else:
                 retries = 0
                 last_height = new_height
         
-        # ดึงข้อมูลจากตาราง
+        
         rows = page.locator('table[data-test="historical-prices"] tbody tr')
         count = await rows.count()
         
         if count > 0:
             all_texts = await rows.all_inner_texts()
             for text in all_texts:
-                # แยก Column
+                
                 cols = text.split('\t')
                 if len(cols) < 5: cols = text.split('\n')
                 
-                # เช็คว่าเป็นแถวราคา (ต้องมีอย่างน้อย 6-7 ช่อง) ไม่เอาแถว Dividend
+                
                 if len(cols) >= 6:
-                    # แปลง Date จาก "Dec 26, 2025" -> "2025-12-26"
+                    
                     try:
                         dt = datetime.strptime(cols[0], "%b %d, %Y")
                         cols[0] = dt.strftime("%Y-%m-%d")
                         data.append(cols[:7])
                     except:
-                        pass # ข้ามแถวที่วันที่แปลกๆ
+                        pass 
 
     except Exception as e:
         logger.error(f"   ❌ Table Scraping Error: {e}")
@@ -142,10 +140,10 @@ async def process_ticker(context, ticker, progress_str):
     final_df = None
     status = "error"
     
-    # 1. ลองทางง่าย (yfinance library)
+    
     final_df = download_via_yfinance(ticker)
     
-    # 2. ถ้าทางง่ายไม่ได้ ให้ลองทางถึก (Playwright Table)
+    
     if final_df is None or final_df.empty:
         final_df = await scrape_table_via_playwright(context, ticker)
     

@@ -30,10 +30,10 @@ except ImportError:
 ASSET_TYPE = 'FUND'
 SOURCE_NAME = 'Yahoo Finance'
 
-# ✅ ปรับจูน: เพิ่ม Batch เล็กน้อย, ลด Delay ลงนิดนึง
-BATCH_SIZE = 40       # (เดิม 30) ยิงทีละ 40 ตัวกำลังดี ไม่มากไม่น้อยเกินไป
-NORMAL_DELAY = 2      # (เดิม 3) พัก 2 วิก็พอสำหรับ Yahoo
-COOL_DOWN_DELAY = 120 # (เดิม 60) ถ้าโดนบล็อก พักยาว 2 นาทีเลย เพื่อความชัวร์
+
+BATCH_SIZE = 40       
+NORMAL_DELAY = 2      
+COOL_DOWN_DELAY = 120 
 
 current_date = datetime.now().strftime('%Y-%m-%d')
 OUTPUT_DIR = DATA_PERFORMANCE_DIR / "yahoo_finance" / current_date
@@ -78,7 +78,7 @@ def fetch_via_web_scraping(ticker):
             
         soup = BeautifulSoup(response.text, 'lxml')
         
-        # หา tag ราคา
+        
         price_tag = soup.find('fin-streamer', {'data-field': 'regularMarketPrice'})
         if not price_tag:
             price_tag = soup.find('fin-streamer', {'data-field': 'regularMarketOpen'})
@@ -205,7 +205,7 @@ def main():
         
         if results:
             df = pd.DataFrame(results)
-            # เรียกใช้ insert_dataframe (ที่แก้ DB Connector แล้ว)
+            
             try: insert_dataframe(df, "stg_daily_nav")
             except: pass
             

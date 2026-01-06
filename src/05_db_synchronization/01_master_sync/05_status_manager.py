@@ -10,7 +10,7 @@ from src.utils.logger import setup_logger, log_execution_summary
 from src.utils.db_connector import get_db_engine
 from src.utils.status_manager import StatusManager
 
-# ✅ [FIXED] แก้ชื่อ Logger
+
 logger = setup_logger("05_sync_StatusMgr")
 
 def manage_status_lifecycle():

@@ -14,7 +14,7 @@ from src.utils.db_connector import get_db_engine, init_master_table
 from src.utils.hasher import calculate_row_hash
 from src.utils.status_manager import StatusManager
 
-# ✅ [FIXED] แก้ชื่อ Logger
+
 logger = setup_logger("05_sync_Loader")
 
 def load_to_database():
