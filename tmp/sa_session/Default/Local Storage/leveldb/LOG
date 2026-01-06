@@ -1,0 +1,63 @@
+2026/01/06-01:58:44.718 5ff114 Reusing MANIFEST /Users/jidapsorat/Desktop/Fund_ETL/tmp/sa_session/Default/Local Storage/leveldb/MANIFEST-000001
+2026/01/06-01:58:44.721 5ff114 Recovering log #28
+2026/01/06-01:58:44.722 5ff114 Reusing old log /Users/jidapsorat/Desktop/Fund_ETL/tmp/sa_session/Default/Local Storage/leveldb/000028.log 
+2026/01/06-01:59:44.728 5ff112 Level-0 table #32: started
+2026/01/06-01:59:44.740 5ff112 Level-0 table #32: 22072 bytes OK
+2026/01/06-01:59:44.747 5ff112 Delete type=0 #28
+2026/01/06-02:05:35.591 5ff114 Level-0 table #34: started
+2026/01/06-02:05:35.595 5ff114 Level-0 table #34: 16233 bytes OK
+2026/01/06-02:05:35.607 5ff114 Delete type=0 #31
+2026/01/06-02:05:35.609 5ff114 Compacting 4@0 + 1@1 files
+2026/01/06-02:05:35.627 5ff114 Generated table #35@0: 3695 keys, 142768 bytes
+2026/01/06-02:05:35.627 5ff114 Compacted 4@0 + 1@1 files => 142768 bytes
+2026/01/06-02:05:35.645 5ff114 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/01/06-02:05:35.646 5ff114 Delete type=2 #29
+2026/01/06-02:05:35.646 5ff114 Delete type=2 #34
+2026/01/06-02:05:35.646 5ff114 Delete type=2 #32
+2026/01/06-02:05:35.646 5ff114 Delete type=2 #27
+2026/01/06-02:05:35.646 5ff114 Delete type=2 #25
+2026/01/06-02:11:35.403 5ff113 Level-0 table #37: started
+2026/01/06-02:11:35.408 5ff113 Level-0 table #37: 16138 bytes OK
+2026/01/06-02:11:35.418 5ff113 Delete type=0 #33
+2026/01/06-02:17:17.837 5ff113 Level-0 table #39: started
+2026/01/06-02:17:17.842 5ff113 Level-0 table #39: 16351 bytes OK
+2026/01/06-02:17:17.849 5ff113 Delete type=0 #36
+2026/01/06-02:22:46.017 5ff112 Level-0 table #41: started
+2026/01/06-02:22:46.026 5ff112 Level-0 table #41: 16298 bytes OK
+2026/01/06-02:22:46.035 5ff112 Delete type=0 #38
+2026/01/06-02:28:02.428 5ff113 Level-0 table #43: started
+2026/01/06-02:28:02.433 5ff113 Level-0 table #43: 16752 bytes OK
+2026/01/06-02:28:02.443 5ff113 Delete type=0 #40
+2026/01/06-02:28:02.444 5ff113 Compacting 4@0 + 1@1 files
+2026/01/06-02:28:02.450 5ff113 Generated table #44@0: 4310 keys, 166645 bytes
+2026/01/06-02:28:02.450 5ff113 Compacted 4@0 + 1@1 files => 166645 bytes
+2026/01/06-02:28:02.458 5ff113 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/01/06-02:28:02.459 5ff113 Delete type=2 #39
+2026/01/06-02:28:02.459 5ff113 Delete type=2 #35
+2026/01/06-02:28:02.459 5ff113 Delete type=2 #37
+2026/01/06-02:28:02.459 5ff113 Delete type=2 #43
+2026/01/06-02:28:02.459 5ff113 Delete type=2 #41
+2026/01/06-02:32:57.940 5ff114 Level-0 table #46: started
+2026/01/06-02:32:57.945 5ff114 Level-0 table #46: 16232 bytes OK
+2026/01/06-02:32:57.952 5ff114 Delete type=0 #42
+2026/01/06-02:38:33.831 5ff113 Level-0 table #48: started
+2026/01/06-02:38:33.837 5ff113 Level-0 table #48: 17696 bytes OK
+2026/01/06-02:38:33.845 5ff113 Delete type=0 #45
+2026/01/06-02:43:33.077 5ff113 Level-0 table #50: started
+2026/01/06-02:43:33.082 5ff113 Level-0 table #50: 16126 bytes OK
+2026/01/06-02:43:33.090 5ff113 Delete type=0 #47
+2026/01/06-02:48:29.688 5ff113 Level-0 table #52: started
+2026/01/06-02:48:29.694 5ff113 Level-0 table #52: 16349 bytes OK
+2026/01/06-02:48:29.703 5ff113 Delete type=0 #49
+2026/01/06-02:48:29.704 5ff113 Compacting 4@0 + 1@1 files
+2026/01/06-02:48:29.712 5ff113 Generated table #53@0: 4935 keys, 191099 bytes
+2026/01/06-02:48:29.712 5ff113 Compacted 4@0 + 1@1 files => 191099 bytes
+2026/01/06-02:48:29.719 5ff113 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/01/06-02:48:29.720 5ff113 Delete type=2 #48
+2026/01/06-02:48:29.720 5ff113 Delete type=2 #50
+2026/01/06-02:48:29.720 5ff113 Delete type=2 #44
+2026/01/06-02:48:29.720 5ff113 Delete type=2 #52
+2026/01/06-02:48:29.720 5ff113 Delete type=2 #46
+2026/01/06-02:55:45.959 5ff112 Level-0 table #55: started
+2026/01/06-02:55:45.969 5ff112 Level-0 table #55: 16303 bytes OK
+2026/01/06-02:55:45.977 5ff112 Delete type=0 #51
