@@ -16,6 +16,18 @@ GLOBAL_PIPELINE = [
         "name": "MASTER LIST SYNC (Module 01 + 05.01)",
         "path": "src/05_db_synchronization/01_master_sync/07_master_sync_orchestrator.py"
     },
+    {
+        "name": "PERFORMANCE SYNC (Module 02 + 05.02)",
+        "path": "src/05_db_synchronization/02_performance_sync/05_performance_sync_orchestrator.py"
+    },
+    {
+        "name": "DETAIL SYNC (Module 03 + 05.03)",
+        "path": "src/05_db_synchronization/03_detail_sync/05_detail_sync_orchestrator.py"
+    },
+    {
+        "name": "HOLDINGS SYNC (Module 04 + 05.04)",
+        "path": "src/05_db_synchronization/04_holdings_sync/06_holdings_sync_orchestrator.py"
+    },
 ]
 
 def run_orchestrator(module):

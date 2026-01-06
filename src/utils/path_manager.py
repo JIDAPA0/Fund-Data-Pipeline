@@ -55,7 +55,7 @@ AUTH_DIR = OUTPUT_DIR / "auth"
 # ==========================================
 # 3. Data Store Directories
 # ==========================================
-DATA_STORE_DIR = BASE_DIR / "data_store"
+DATA_STORE_DIR = BASE_DIR / "data"  # ใช้โฟลเดอร์ data ที่มีอยู่จริง
 
 DATA_MASTER_LIST_DIR = DATA_STORE_DIR / "01_master_list"
 DATA_MASTER_READY_DIR = DATA_MASTER_LIST_DIR / "04_ready_to_load" # Stage 04 Support
@@ -95,10 +95,7 @@ SCRAPER_PERF_YF_FUND_NAV     = PERF_YF_DIR / "01_yf_fund_nav_scraper.py"
 SCRAPER_PERF_YF_ETF_NAV      = PERF_YF_DIR / "02_yf_etf_nav_scraper.py"
 
 # Repair & Sweep for YF
-SCRAPER_PERF_YF_FUND_REPAIR  = PERF_YF_DIR / "02_yf_repair_scraper.py"
-SCRAPER_PERF_YF_ETF_REPAIR   = PERF_YF_DIR / "02_yf_etf_repair_scraper.py"
-SCRAPER_PERF_YF_FUND_SWEEP   = PERF_YF_DIR / "03_yf_final_sweep.py"
-SCRAPER_PERF_YF_ETF_SWEEP    = PERF_YF_DIR / "03_yf_etf_final_sweep.py"
+SCRAPER_PERF_YF_FUND_REPAIR  = PERF_YF_DIR / "02_yf_fund_repair_scraper.py"
 
 SCRAPER_PERF_YF_FUND_HISTORY = PERF_YF_DIR / "03_yf_fund_price_history_scraper.py"
 SCRAPER_PERF_YF_ETF_HISTORY  = PERF_YF_DIR / "04_yf_etf_price_history_scraper.py"
@@ -110,24 +107,21 @@ SRC_STATIC_DIR = SRC_DIR / "03_master_detail_static"
 
 # FT
 STATIC_FT_DIR = SRC_STATIC_DIR / "financial_times"
-SCRAPER_STATIC_FT_IDENTITY = STATIC_FT_DIR / "01_ft_identity.py"
-SCRAPER_STATIC_FT_FEES     = STATIC_FT_DIR / "02_ft_fees_ops.py"
-SCRAPER_STATIC_FT_RISK     = STATIC_FT_DIR / "03_ft_risk_ratings.py"
-SCRAPER_STATIC_FT_POLICY   = STATIC_FT_DIR / "04_ft_policy.py"
+SCRAPER_STATIC_FT_IDENTITY = STATIC_FT_DIR / "01_ft_info_scraper.py"
+SCRAPER_STATIC_FT_FEES     = STATIC_FT_DIR / "02_ft_fees_scraper.py"
+SCRAPER_STATIC_FT_RISK     = STATIC_FT_DIR / "03_ft_risk_scraper.py"
+SCRAPER_STATIC_FT_POLICY   = STATIC_FT_DIR / "04_ft_policy_scraper.py"
 
-# SA (✅ Updated: เพิ่ม 01_sa_detail_scraper.py)
+# SA
 STATIC_SA_DIR = SRC_STATIC_DIR / "stock_analysis"
 SCRAPER_STATIC_SA_DETAIL   = STATIC_SA_DIR / "01_sa_detail_scraper.py" 
-SCRAPER_STATIC_SA_FEES     = STATIC_SA_DIR / "02_sa_fees_ops.py"
-SCRAPER_STATIC_SA_RISK     = STATIC_SA_DIR / "03_sa_risk_ratings.py"
-SCRAPER_STATIC_SA_POLICY   = STATIC_SA_DIR / "04_sa_policy.py"
 
 # YF
 STATIC_YF_DIR = SRC_STATIC_DIR / "yahoo_finance"
-SCRAPER_STATIC_YF_IDENTITY = STATIC_YF_DIR / "01_yf_identity.py"
-SCRAPER_STATIC_YF_FEES     = STATIC_YF_DIR / "02_yf_fees_ops.py"
-SCRAPER_STATIC_YF_RISK     = STATIC_YF_DIR / "03_yf_risk_ratings.py"
-SCRAPER_STATIC_YF_POLICY   = STATIC_YF_DIR / "04_yf_policy.py"
+SCRAPER_STATIC_YF_IDENTITY = STATIC_YF_DIR / "01_yf_info_scraper.py"
+SCRAPER_STATIC_YF_FEES     = STATIC_YF_DIR / "02_yf_fees_scraper.py"
+SCRAPER_STATIC_YF_RISK     = STATIC_YF_DIR / "03_yf_risk_scraper.py"
+SCRAPER_STATIC_YF_POLICY   = STATIC_YF_DIR / "04_yf_policy_scraper.py"
 
 # --- 4.4 Holdings Acquisition ---
 SRC_HOLDINGS_DIR = SRC_DIR / "04_holdings_acquisition"
@@ -135,7 +129,9 @@ SRC_HOLDINGS_DIR = SRC_DIR / "04_holdings_acquisition"
 # FT
 HOLDINGS_FT_DIR = SRC_HOLDINGS_DIR / "financial_times"
 SCRAPER_HOLDINGS_FT_HOLDINGS    = HOLDINGS_FT_DIR / "01_ft_holdings_scraper.py"
-SCRAPER_HOLDINGS_FT_ALLOCATIONS = HOLDINGS_FT_DIR / "02_ft_allocations_scraper.py"
+SCRAPER_HOLDINGS_FT_ALLOCATIONS = HOLDINGS_FT_DIR / "02_ft_asset_allocation_scraper.py"
+SCRAPER_HOLDINGS_FT_SECTORS     = HOLDINGS_FT_DIR / "03_ft_sector_scraper.py"
+SCRAPER_HOLDINGS_FT_REGIONS     = HOLDINGS_FT_DIR / "04_ft_region_scraper.py"
 
 # SA
 HOLDINGS_SA_DIR = SRC_HOLDINGS_DIR / "stock_analysis"
@@ -145,7 +141,6 @@ SCRAPER_HOLDINGS_SA_ALLOCATIONS = HOLDINGS_SA_DIR / "02_sa_allocations_scraper.p
 # YF
 HOLDINGS_YF_DIR = SRC_HOLDINGS_DIR / "yahoo_finance"
 SCRAPER_HOLDINGS_YF_HOLDINGS    = HOLDINGS_YF_DIR / "01_yf_holdings_scraper.py"
-SCRAPER_HOLDINGS_YF_ALLOCATIONS = HOLDINGS_YF_DIR / "02_yf_allocations_scraper.py"
 
 
 # ==========================================
@@ -177,7 +172,7 @@ SYNC_PERF_LOADER_DIV  = SYNC_PERF_DIR / "03_dividend_loader.py"
 SYNC_PERF_LOADER_HIST = SYNC_PERF_DIR / "03_price_history_loader.py"
 SYNC_PERF_GAP_CHECKER = SYNC_PERF_DIR / "04_nav_gap_checker.py"
 SYNC_PERF_ARCHIVER    = SYNC_PERF_DIR / "05_performance_archiver.py"
-SYNC_PERF_ORCHESTRATOR = SYNC_PERF_DIR / "06_performance_sync_orchestrator.py"
+SYNC_PERF_ORCHESTRATOR = SYNC_PERF_DIR / "05_performance_sync_orchestrator.py"
 
 # --- 5.3 Detail Sync ---
 SYNC_DETAIL_DIR = SRC_DB_SYNC_DIR / "03_detail_sync"
@@ -203,7 +198,6 @@ SYNC_HOLDINGS_ORCHESTRATOR = SYNC_HOLDINGS_DIR / "06_holdings_sync_orchestrator.
 # ==========================================
 SRC_UTILS_DIR = SRC_DIR / "utils"
 UTILS_BROWSER_UTILS = SRC_UTILS_DIR / "browser_utils.py"
-UTILS_DATA_CLEANER  = SRC_UTILS_DIR / "data_cleaner.py"
 UTILS_DB_CONNECTOR  = SRC_UTILS_DIR / "db_connector.py"
 UTILS_HASHER        = SRC_UTILS_DIR / "hasher.py"
 UTILS_LOGGER        = SRC_UTILS_DIR / "logger.py"
@@ -242,6 +236,7 @@ def ensure_dirs_exist():
         DATA_STORE_DIR, DATA_MASTER_LIST_DIR, 
         DATA_MASTER_READY_DIR,
         DATA_PERFORMANCE_DIR, DATA_STATIC_DETAILS_DIR, DATA_HOLDINGS_DIR,
+        DATA_STORE_DIR / "03_staging", DATA_STORE_DIR / "04_hashed",
         SRC_UTILS_DIR, SRC_MAINTENANCE_DIR,
         DATA_STORE_DIR / "archive" / "master_list"
     ]
@@ -272,8 +267,7 @@ def check_all_scripts_exist():
             "FT NAV": SCRAPER_PERF_FT_NAV, "FT Hist": SCRAPER_PERF_FT_HISTORY, "FT Repair": SCRAPER_PERF_FT_REPAIR,
             "SA NAV": SCRAPER_PERF_SA_NAV, "SA Hist": SCRAPER_PERF_SA_HISTORY, "SA Div": SCRAPER_PERF_SA_DIVIDEND,
             "YF Fund NAV": SCRAPER_PERF_YF_FUND_NAV, "YF ETF NAV": SCRAPER_PERF_YF_ETF_NAV,
-            "YF Fund Repair": SCRAPER_PERF_YF_FUND_REPAIR, "YF ETF Repair": SCRAPER_PERF_YF_ETF_REPAIR,
-            "YF Fund Sweep": SCRAPER_PERF_YF_FUND_SWEEP, "YF ETF Sweep": SCRAPER_PERF_YF_ETF_SWEEP,
+            "YF Fund Repair": SCRAPER_PERF_YF_FUND_REPAIR,
             "YF Fund Hist": SCRAPER_PERF_YF_FUND_HISTORY, "YF ETF Hist": SCRAPER_PERF_YF_ETF_HISTORY,
             "YF Fund Div": SCRAPER_PERF_YF_FUND_DIV, "YF ETF Div": SCRAPER_PERF_YF_ETF_DIV,
         },
@@ -283,16 +277,15 @@ def check_all_scripts_exist():
             
             # ✅ Updated Check List
             "SA Detail": SCRAPER_STATIC_SA_DETAIL, 
-            "SA Fees": SCRAPER_STATIC_SA_FEES,
-            "SA Risk": SCRAPER_STATIC_SA_RISK, "SA Policy": SCRAPER_STATIC_SA_POLICY,
             
             "YF Identity": SCRAPER_STATIC_YF_IDENTITY, "YF Fees": SCRAPER_STATIC_YF_FEES,
             "YF Risk": SCRAPER_STATIC_YF_RISK, "YF Policy": SCRAPER_STATIC_YF_POLICY,
         },
         "4. Acquisition (Holdings)": {
             "FT Main": SCRAPER_HOLDINGS_FT_HOLDINGS, "FT Alloc": SCRAPER_HOLDINGS_FT_ALLOCATIONS,
+            "FT Sector": SCRAPER_HOLDINGS_FT_SECTORS, "FT Region": SCRAPER_HOLDINGS_FT_REGIONS,
             "SA Main": SCRAPER_HOLDINGS_SA_HOLDINGS, "SA Alloc": SCRAPER_HOLDINGS_SA_ALLOCATIONS,
-            "YF Main": SCRAPER_HOLDINGS_YF_HOLDINGS, "YF Alloc": SCRAPER_HOLDINGS_YF_ALLOCATIONS,
+            "YF Main": SCRAPER_HOLDINGS_YF_HOLDINGS,
         },
         "5. Synchronization": {
             "Main Pipeline": SYNC_MAIN_PIPELINE,
@@ -315,7 +308,7 @@ def check_all_scripts_exist():
         },
         "6. Utilities & Maint": {
             "Maint Clean Old": MAINTENANCE_CLEANUP_OLD, "Maint Retention": MAINTENANCE_RETENTION,
-            "Util Browser": UTILS_BROWSER_UTILS, "Util Cleaner": UTILS_DATA_CLEANER,
+            "Util Browser": UTILS_BROWSER_UTILS,
             "Util DB": UTILS_DB_CONNECTOR, "Util Hasher": UTILS_HASHER,
             "Util Logger": UTILS_LOGGER, "Util PathMgr": UTILS_PATH_MANAGER,
             "Util Status Mgr": UTILS_STATUS_MANAGER,

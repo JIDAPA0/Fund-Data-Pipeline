@@ -55,6 +55,9 @@ def load_dividend_to_db(df, engine):
         df['type'] = 'Cash'
     if 'currency' not in df.columns:
         df['currency'] = None
+    if 'row_hash' in df.columns:
+        df['row_hash'] = df['row_hash'].fillna("").astype(str).str.strip()
+        df = df[df['row_hash'] != ""]
 
     try:
         with engine.connect() as conn:

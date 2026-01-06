@@ -83,7 +83,29 @@ def main():
     for csv_file in all_hashed_files:
         try:
             df = pd.read_csv(csv_file)
-            if df.empty: continue
+            if df.empty:
+                continue
+
+            # Align column names with DB schema and remove unusable rows
+            rename_map = {
+                "adj close": "adj_close",
+                "Adj Close": "adj_close",
+                "change %": "change_pct",
+            }
+            df = df.rename(columns=lambda c: c.strip())
+            df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+            if "change_pct" in df.columns:
+                df = df.drop(columns=["change_pct"])
+            if "updated_at" in df.columns:
+                df["updated_at"] = pd.to_datetime(df["updated_at"], errors="coerce")
+                df["updated_at"] = df["updated_at"].fillna(pd.Timestamp.utcnow())
+            else:
+                df["updated_at"] = pd.Timestamp.utcnow()
+            if "row_hash" in df.columns:
+                df["row_hash"] = df["row_hash"].fillna("").astype(str).str.strip()
+                df = df[df["row_hash"] != ""]
+            if df.empty:
+                continue
             
             rows_added = upsert_to_db(df, engine)
             total_rows += rows_added

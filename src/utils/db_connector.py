@@ -407,6 +407,8 @@ def upsert_method(table, conn, keys, data_iter):
     if constraint:
         set_ = {c.key: c for c in stmt.excluded if c.key not in ['id', 'updated_at']}
         stmt = stmt.on_conflict_do_update(constraint=constraint, set_=set_)
+        if "row_hash" in table.table.c:
+            stmt = stmt.where(table.table.c.row_hash.is_distinct_from(stmt.excluded.row_hash))
     
     result = conn.execute(stmt)
     return result.rowcount

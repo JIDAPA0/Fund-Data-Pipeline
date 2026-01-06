@@ -1,0 +1,167 @@
+import sys
+from pathlib import Path
+from datetime import datetime
+import pandas as pd
+
+# This cleaner consolidates static detail CSVs from validation_output into a single
+# staging folder under data/03_static_details/<date> with normalized columns.
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.append(str(BASE_DIR))
+
+VALIDATION_ROOT = BASE_DIR / "validation_output"
+STAGING_ROOT = BASE_DIR / "data" / "03_static_details"
+
+TODAY = datetime.now().strftime("%Y-%m-%d")
+OUTPUT_DIR = STAGING_ROOT / TODAY
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+INFO_FILES = list((VALIDATION_ROOT).glob("*/03_Detail_Static/*fund_info.csv"))
+FEES_FILES = list((VALIDATION_ROOT).glob("*/03_Detail_Static/*fund_fees.csv"))
+RISK_FILES = list((VALIDATION_ROOT).glob("*/03_Detail_Static/*fund_risk.csv"))
+POLICY_FILES = list((VALIDATION_ROOT).glob("*/03_Detail_Static/*fund_policy.csv"))
+
+
+def load_and_normalize(files, expected_cols, filename):
+    frames = []
+    for f in files:
+        try:
+            df = pd.read_csv(f)
+        except Exception:
+            continue
+        df.columns = [c.strip().lower() for c in df.columns]
+        df["source"] = df.get("source", f.parent.parent.name.replace("_", " ")).fillna(
+            f.parent.parent.name.replace("_", " ")
+        )
+        df["asset_type"] = df.get("asset_type", "").str.upper().fillna("ETF")
+        frames.append(df)
+
+    if not frames:
+        print(f"⚠️ ไม่มีไฟล์สำหรับ {filename}")
+        return
+
+    df_all = pd.concat(frames, ignore_index=True)
+    for col in expected_cols:
+        if col not in df_all.columns:
+            df_all[col] = None
+    df_all = df_all[expected_cols]
+    out_path = OUTPUT_DIR / filename
+    df_all.to_csv(out_path, index=False)
+    print(f"✅ Saved cleaned file: {out_path} ({len(df_all)} rows)")
+
+
+def main():
+    load_and_normalize(
+        INFO_FILES,
+        [
+            "ticker",
+            "asset_type",
+            "source",
+            "name",
+            "isin_number",
+            "cusip_number",
+            "issuer",
+            "category",
+            "index_benchmark",
+            "inception_date",
+            "exchange",
+            "region",
+            "country",
+            "leverage",
+            "options",
+            "shares_out",
+            "market_cap_size",
+            "investment_style",
+        ],
+        "fund_info_clean.csv",
+    )
+
+    load_and_normalize(
+        FEES_FILES,
+        [
+            "ticker",
+            "asset_type",
+            "source",
+            "expense_ratio",
+            "initial_charge",
+            "exit_charge",
+            "assets_aum",
+            "top_10_hold_pct",
+            "holdings_count",
+            "holdings_turnover",
+        ],
+        "fund_fees_clean.csv",
+    )
+
+    load_and_normalize(
+        RISK_FILES,
+        [
+            "ticker",
+            "asset_type",
+            "source",
+            "sharpe_ratio_1y",
+            "sharpe_ratio_3y",
+            "sharpe_ratio_5y",
+            "sharpe_ratio_10y",
+            "beta_1y",
+            "beta_3y",
+            "beta_5y",
+            "beta_10y",
+            "alpha_1y",
+            "alpha_3y",
+            "alpha_5y",
+            "alpha_10y",
+            "standard_dev_1y",
+            "standard_dev_3y",
+            "standard_dev_5y",
+            "standard_dev_10y",
+            "r_squared_1y",
+            "r_squared_3y",
+            "r_squared_5y",
+            "r_squared_10y",
+            "rsi_daily",
+            "moving_avg_200",
+            "morningstar_rating",
+            "lipper_total_return_3y",
+            "lipper_total_return_5y",
+            "lipper_total_return_10y",
+            "lipper_total_return_overall",
+            "lipper_consistent_return_3y",
+            "lipper_consistent_return_5y",
+            "lipper_consistent_return_10y",
+            "lipper_consistent_return_overall",
+            "lipper_preservation_3y",
+            "lipper_preservation_5y",
+            "lipper_preservation_10y",
+            "lipper_preservation_overall",
+            "lipper_expense_3y",
+            "lipper_expense_5y",
+            "lipper_expense_10y",
+            "lipper_expense_overall",
+        ],
+        "fund_risk_clean.csv",
+    )
+
+    load_and_normalize(
+        POLICY_FILES,
+        [
+            "ticker",
+            "asset_type",
+            "source",
+            "dividend_yield",
+            "dividend_growth_1y",
+            "dividend_growth_3y",
+            "dividend_growth_5y",
+            "dividend_growth_10y",
+            "dividend_consecutive_years",
+            "payout_ratio",
+            "total_return_ytd",
+            "total_return_1y",
+            "pe_ratio",
+        ],
+        "fund_policy_clean.csv",
+    )
+
+
+if __name__ == "__main__":
+    main()

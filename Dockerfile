@@ -17,4 +17,4 @@ COPY . .
 
 RUN chmod +x entrypoint.sh
 
-CMD ["python", "src/05_db_synchronization/01_master_sync/07_master_sync_orchestrator.py"]
+CMD ["./entrypoint.sh"]

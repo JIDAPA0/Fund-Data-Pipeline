@@ -1,0 +1,8 @@
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday=0)
+# │ │ │ │ │
+# │ │ │ │ │
+0 6 * * 1-5 cd /app && PYTHONPATH=/app /usr/bin/python src/05_db_synchronization/main_pipeline.py >> /app/logs/cron_main_pipeline.log 2>&1

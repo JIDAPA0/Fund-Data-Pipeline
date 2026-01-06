@@ -9,9 +9,7 @@ import math
 from bs4 import BeautifulSoup
 from pathlib import Path
 
-# ==========================================
-# SYSTEM PATH SETUP
-# ==========================================
+# Static info scraper for FT summary/holdings pages (despite legacy filename).
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parents[2]
 if str(project_root) not in sys.path:
@@ -24,7 +22,7 @@ from src.utils.db_connector import get_active_tickers
 # ==========================================
 # CONFIGURATION
 # ==========================================
-logger = setup_logger("01_ft_info_turbo")
+logger = setup_logger("ft_static_info_scraper")
 
 CONCURRENCY = 50  
 BATCH_SIZE = 100  
