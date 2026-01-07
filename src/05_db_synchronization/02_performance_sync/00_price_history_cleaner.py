@@ -22,11 +22,11 @@ DATA_PERFORMANCE_DIR = project_root / "validation_output"
 CLEAN_BASE_DIR = project_root / "data" / "03_staging"
 
 
-SOURCES = ['stock', 'yahoo', 'ft']
+SOURCES = ['sa', 'yf', 'ft']
 source_config = {
     'ft': {'path': DATA_PERFORMANCE_DIR / "Financial_Times", 'name': 'Financial Times'},
-    'yahoo': {'path': DATA_PERFORMANCE_DIR / "Yahoo_Finance", 'name': 'Yahoo Finance'},
-    'stock': {'path': DATA_PERFORMANCE_DIR / "Stock_Analysis", 'name': 'Stock Analysis'}
+    'yf': {'path': DATA_PERFORMANCE_DIR / "Yahoo_Finance", 'name': 'Yahoo Finance'},
+    'sa': {'path': DATA_PERFORMANCE_DIR / "Stock_Analysis", 'name': 'Stock Analysis'}
 }
 
 # ==========================================

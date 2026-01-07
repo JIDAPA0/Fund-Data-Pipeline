@@ -41,7 +41,7 @@ def upsert_to_db(df, engine):
         INSERT INTO {TARGET_TABLE} (ticker, asset_type, source, date, open, high, low, close, adj_close, volume, row_hash, updated_at)
         SELECT ticker, asset_type, source, date, open, high, low, close, adj_close, volume, row_hash, updated_at 
         FROM {temp_table}
-        ON CONFLICT (ticker, source, date) 
+        ON CONFLICT (ticker, asset_type, source, date) 
         DO UPDATE SET 
             open = EXCLUDED.open,
             high = EXCLUDED.high,
