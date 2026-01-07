@@ -27,13 +27,12 @@ def load_file(filename: str, allocation_type: str):
         return
 
     df["allocation_type"] = allocation_type
-    df = df.rename(columns={"item_name": "category_name", "value_net": "value_net"})
     for col in [
         "ticker",
         "asset_type",
         "source",
         "allocation_type",
-        "category_name",
+        "item_name",
         "value_net",
         "value_category_avg",
         "value_long",
@@ -51,7 +50,7 @@ def load_file(filename: str, allocation_type: str):
             "asset_type",
             "source",
             "allocation_type",
-            "category_name",
+            "item_name",
             "value_net",
             "value_category_avg",
             "value_long",
@@ -61,6 +60,14 @@ def load_file(filename: str, allocation_type: str):
             "updated_at",
         ]
     ]
+    df["item_name"] = df["item_name"].astype(str).str.strip()
+    df["as_of_date"] = pd.to_datetime(df["as_of_date"], errors="coerce").dt.date
+    for col in ["value_net", "value_category_avg", "value_long", "value_short"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["ticker", "asset_type", "source", "allocation_type", "item_name"])
+    df = df.drop_duplicates(
+        subset=["ticker", "asset_type", "source", "allocation_type", "item_name", "as_of_date"]
+    )
     insert_dataframe(df, "stg_allocations")
     print(f"✅ Loaded allocations from {filename}: {len(df)} rows")
 

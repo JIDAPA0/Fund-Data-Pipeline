@@ -160,7 +160,8 @@ def init_dividend_history_table(engine):
                 currency VARCHAR(10),
                 type VARCHAR(20) DEFAULT 'Cash',
                 row_hash VARCHAR(255),
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_stg_dividend_key UNIQUE (ticker, asset_type, source, ex_date, payment_date, amount, type)
             );
         """)
         with engine.connect() as conn:
@@ -202,6 +203,7 @@ def init_fund_info_table(engine):
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_info (
+                id SERIAL PRIMARY KEY,
                 ticker VARCHAR(20) NOT NULL,
                 asset_type VARCHAR(20) NOT NULL,
                 source VARCHAR(50) NOT NULL,
@@ -222,7 +224,7 @@ def init_fund_info_table(engine):
                 investment_style VARCHAR(50),
                 row_hash VARCHAR(64),
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (ticker, asset_type, source)
+                CONSTRAINT uq_stg_fund_info_key UNIQUE (ticker, asset_type, source)
             );
         """)
         with engine.connect() as conn:
@@ -235,6 +237,7 @@ def init_fund_fees_table(engine):
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_fees (
+                id SERIAL PRIMARY KEY,
                 ticker VARCHAR(20) NOT NULL,
                 asset_type VARCHAR(20) NOT NULL,
                 source VARCHAR(50) NOT NULL,
@@ -247,7 +250,7 @@ def init_fund_fees_table(engine):
                 holdings_turnover DECIMAL(5, 2),
                 row_hash VARCHAR(64),
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (ticker, asset_type, source)
+                CONSTRAINT uq_stg_fund_fees_key UNIQUE (ticker, asset_type, source)
             );
         """)
         with engine.connect() as conn:
@@ -260,6 +263,7 @@ def init_fund_risk_table(engine):
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_risk (
+                id SERIAL PRIMARY KEY,
                 ticker VARCHAR(20) NOT NULL,
                 asset_type VARCHAR(20) NOT NULL,
                 source VARCHAR(50) NOT NULL,
@@ -275,7 +279,7 @@ def init_fund_risk_table(engine):
                 lipper_expense_3y INT, lipper_expense_5y INT, lipper_expense_10y INT, lipper_expense_overall INT,
                 row_hash VARCHAR(64),
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (ticker, asset_type, source)
+                CONSTRAINT uq_stg_fund_risk_key UNIQUE (ticker, asset_type, source)
             );
         """)
         with engine.connect() as conn:
@@ -288,6 +292,7 @@ def init_fund_policy_table(engine):
     try:
         create_table_sql = text("""
             CREATE TABLE IF NOT EXISTS stg_fund_policy (
+                id SERIAL PRIMARY KEY,
                 ticker VARCHAR(20) NOT NULL,
                 asset_type VARCHAR(20) NOT NULL,
                 source VARCHAR(50) NOT NULL,
@@ -303,7 +308,7 @@ def init_fund_policy_table(engine):
                 pe_ratio DECIMAL(5, 2),
                 row_hash VARCHAR(64),
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (ticker, asset_type, source)
+                CONSTRAINT uq_stg_fund_policy_key UNIQUE (ticker, asset_type, source)
             );
         """)
         with engine.connect() as conn:
@@ -380,12 +385,12 @@ def upsert_method(table, conn, keys, data_iter):
         'stg_security_master': 'uq_stg_master_key',
         'stg_price_history': 'uq_stg_price_key',
         'stg_daily_nav': 'uq_stg_daily_nav_key',
-        'stg_dividend_history': None,
+        'stg_dividend_history': 'uq_stg_dividend_key',
         'stg_allocations': 'uq_stg_allocations_key',
-        'stg_fund_info': 'stg_fund_info_pkey',
-        'stg_fund_fees': 'stg_fund_fees_pkey',
-        'stg_fund_risk': 'stg_fund_risk_pkey',
-        'stg_fund_policy': 'stg_fund_policy_pkey',
+        'stg_fund_info': 'uq_stg_fund_info_key',
+        'stg_fund_fees': 'uq_stg_fund_fees_key',
+        'stg_fund_risk': 'uq_stg_fund_risk_key',
+        'stg_fund_policy': 'uq_stg_fund_policy_key',
         'stg_fund_holdings': 'uq_stg_holdings_key' 
     }
     

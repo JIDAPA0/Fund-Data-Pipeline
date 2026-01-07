@@ -66,6 +66,17 @@ def load_holdings():
             "updated_at",
         ]
     ]
+    df["holding_name"] = df["holding_name"].astype(str).str.strip()
+    df["holding_ticker"] = df["holding_ticker"].astype(str).str.strip()
+    df.loc[df["holding_ticker"].isin(["", "nan", "None"]), "holding_ticker"] = None
+    df.loc[df["holding_ticker"].str.len() > 20, "holding_ticker"] = None
+    df["as_of_date"] = pd.to_datetime(df["as_of_date"], errors="coerce").dt.date
+    for col in ["holding_percentage", "shares_held", "market_value"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["ticker", "asset_type", "source", "holding_name"])
+    df = df.drop_duplicates(
+        subset=["ticker", "asset_type", "source", "holding_name", "as_of_date"]
+    )
     insert_dataframe(df, "stg_fund_holdings")
     print(f"✅ Loaded holdings: {len(df)} rows")
 

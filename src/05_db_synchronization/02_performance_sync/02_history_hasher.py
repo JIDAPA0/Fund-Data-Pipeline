@@ -47,6 +47,10 @@ def process_hashing():
     processed_count = 0
     for csv_file in all_clean_files:
         try:
+            rel_path = csv_file.relative_to(STAGING_DIR)
+            save_path = HASHED_DIR / rel_path
+            if save_path.exists():
+                continue
 
             df = pd.read_csv(csv_file, low_memory=False)
             
@@ -56,8 +60,6 @@ def process_hashing():
             
             df['updated_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-            rel_path = csv_file.relative_to(STAGING_DIR)
-            save_path = HASHED_DIR / rel_path
             save_path.parent.mkdir(parents=True, exist_ok=True)
             
             df.to_csv(save_path, index=False)

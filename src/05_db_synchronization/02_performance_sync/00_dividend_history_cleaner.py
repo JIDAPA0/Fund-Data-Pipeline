@@ -13,8 +13,8 @@ DATA_DIR = project_root / "validation_output"
 STAGING_DIR = project_root / "data" / "03_staging" / "dividend_history"
 
 SOURCES = {
-    'stock': DATA_DIR / "Stock_Analysis" / "02_Price_And_Dividend_History" / "Dividend_History",
-    'yahoo': DATA_DIR / "Yahoo_Finance" / "02_Price_And_Dividend_History" / "Dividend_History"
+    'sa': DATA_DIR / "Stock_Analysis" / "02_Price_And_Dividend_History" / "Dividend_History",
+    'yf': DATA_DIR / "Yahoo_Finance" / "02_Price_And_Dividend_History" / "Dividend_History"
 }
 
 def clean_dvd():
@@ -29,7 +29,7 @@ def clean_dvd():
                 df.columns = [c.strip().lower() for c in df.columns]
                 
                 
-                df.insert(0, 'source', 'Stock Analysis' if skey == 'stock' else 'Yahoo Finance')
+                df.insert(0, 'source', 'Stock Analysis' if skey == 'sa' else 'Yahoo Finance')
                 df.insert(0, 'asset_type', 'ETF' if 'etf' in str(f).lower() else 'FUND')
                 df.insert(0, 'ticker', f.stem.split('_')[0].upper())
                 

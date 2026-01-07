@@ -18,7 +18,7 @@ while not (project_root / 'src').exists():
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.utils.db_connector import get_db_connection
+from src.utils.db_connector import insert_dataframe, get_db_engine, init_dividend_history_table
 
 # ==========================================
 # 1. CONFIGURATION
@@ -30,7 +30,7 @@ TARGET_TABLE = "stg_dividend_history"
 # 2. CORE LOADER LOGIC
 # ==========================================
 
-def load_dividend_to_db(df, engine):
+def load_dividend_to_db(df):
     if df.empty:
         return 0
 
@@ -38,6 +38,7 @@ def load_dividend_to_db(df, engine):
         'ex_dividend_date': 'ex_date',
         'pay_date': 'payment_date',
         'cash_amount': 'amount',
+        'dividend': 'amount',
         'ex_date': 'ex_date',
         'payment_date': 'payment_date'
     }
@@ -46,29 +47,56 @@ def load_dividend_to_db(df, engine):
     for col in ['ex_date', 'payment_date']:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce')
+    if 'amount' in df.columns:
+        df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
     
     if 'type' not in df.columns:
         df['type'] = 'Cash'
     if 'currency' not in df.columns:
         df['currency'] = None
+    if 'updated_at' in df.columns:
+        df['updated_at'] = pd.to_datetime(df['updated_at'], errors='coerce')
+        df['updated_at'] = df['updated_at'].fillna(pd.Timestamp.utcnow())
+    else:
+        df['updated_at'] = pd.Timestamp.utcnow()
     if 'row_hash' in df.columns:
         df['row_hash'] = df['row_hash'].fillna("").astype(str).str.strip()
         df = df[df['row_hash'] != ""]
+    else:
+        df['row_hash'] = None
+
+    required_cols = [
+        'ticker',
+        'asset_type',
+        'source',
+        'ex_date',
+        'payment_date',
+        'amount',
+        'currency',
+        'type',
+        'row_hash',
+        'updated_at',
+    ]
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = None
+    df = df[required_cols]
+    df = df.dropna(subset=['ticker', 'asset_type', 'source', 'ex_date', 'amount'])
+    df = df.drop_duplicates(subset=['ticker', 'asset_type', 'source', 'ex_date', 'amount', 'type', 'payment_date'])
 
     try:
-        with engine.connect() as conn:
-            df.to_sql(TARGET_TABLE, conn, if_exists='append', index=False, method='multi', chunksize=1000)
+        insert_dataframe(df, TARGET_TABLE)
         return len(df)
-        
     except Exception as e:
         print(f"      ❌ Load Error: {e}")
         return 0
 
 def main():
-    print(f"🚀 Starting Flexible Dividend Loader for Date: {TIMESTAMP}")
+    print("🚀 Starting Flexible Dividend Loader")
     
     try:
-        engine = get_db_connection()
+        engine = get_db_engine()
+        init_dividend_history_table(engine)
     except Exception as e:
         print(f"❌ Cannot connect to Database: {e}")
         return
@@ -89,7 +117,7 @@ def main():
             if df.empty:
                 continue
 
-            rows_added = load_dividend_to_db(df, engine)
+            rows_added = load_dividend_to_db(df)
             total_uploaded_rows += rows_added
             processed_files += 1
 
