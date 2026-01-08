@@ -1,8 +1,12 @@
 .env
 .venv
+.venv_fund_etl/
 __pycache__/
 *.csv
 
 .DS_Store
+data/
+logs/
+tmp/
 logs/**/*.log
 validation_output/
