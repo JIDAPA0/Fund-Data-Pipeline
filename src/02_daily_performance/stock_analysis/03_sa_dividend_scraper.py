@@ -21,7 +21,7 @@ if project_root not in sys.path:
 
 from src.utils.path_manager import VAL_SA_HIST, VAL_SA_MASTER
 from src.utils.browser_utils import human_mouse_move
-from src.utils.db_connector import get_db_connection
+from src.utils.db_connector import get_db_connection, get_active_tickers
 from src.utils.hasher import calculate_row_hash
 from src.utils.logger import setup_logger, log_execution_summary
 
@@ -149,14 +149,26 @@ def get_all_downloaded_tickers(base_path):
         downloaded.add(file_path.name.replace("_dividend.csv", ""))
     return downloaded
 
+def load_master_tickers():
+    master_files = list(VAL_SA_MASTER.rglob(f"sa_{ASSET_TYPE}_master.csv"))
+    if master_files:
+        try:
+            return pd.read_csv(master_files[-1])['ticker'].astype(str).tolist()
+        except Exception:
+            pass
+    db_rows = get_active_tickers("Stock Analysis")
+    tickers = [r["ticker"] for r in db_rows if str(r.get("asset_type", "")).upper() == ASSET_TYPE.upper()]
+    logger.info("📋 Loaded %s tickers from DB fallback.", len(tickers))
+    return tickers
+
 async def main():
     logger.info(f"🚀 STARTING: SA DIVIDEND (TURBO-SAFE MODE)")
     
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        master_path = list(VAL_SA_MASTER.rglob(f"sa_{ASSET_TYPE}_master.csv"))[-1]
-        all_tickers = pd.read_csv(master_path)['ticker'].astype(str).tolist()
-    except: return
+    all_tickers = load_master_tickers()
+    if not all_tickers:
+        logger.error("❌ No tickers found (master list + DB fallback failed).")
+        return
 
     done_tickers = get_all_downloaded_tickers(VAL_SA_HIST)
     queue = [t for t in all_tickers if t not in done_tickers]

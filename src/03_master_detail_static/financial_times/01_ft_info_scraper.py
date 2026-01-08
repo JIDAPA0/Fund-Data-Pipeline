@@ -98,7 +98,7 @@ class FTInfoScraper:
         
         if not html: return None
 
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, 'html.parser')
         data = {}
         
         header = soup.select_one('h1.mod-tearsheet-overview__header__name')
@@ -142,7 +142,7 @@ class FTInfoScraper:
         if not html: return None
         
         try:
-            soup = BeautifulSoup(html, 'lxml')
+            soup = BeautifulSoup(html, 'html.parser')
             header = soup.find(string=re.compile(r'Geographical breakdown|Asset allocation', re.IGNORECASE))
             
             if header:

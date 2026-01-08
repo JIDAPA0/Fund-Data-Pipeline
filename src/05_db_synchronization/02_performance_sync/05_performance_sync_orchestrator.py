@@ -44,7 +44,7 @@ SEQUENTIAL_STEPS = [
     ("00_performance_data_cleaner.py", SYNC_DIR),
     ("01_performance_validator.py", SYNC_DIR),
     ("03_daily_nav_loader.py", SYNC_DIR),
-    ("05_performance_archiver.py", SYNC_DIR)
+    ("04_performance_archiver.py", SYNC_DIR)
 ]
 
 # ==========================================

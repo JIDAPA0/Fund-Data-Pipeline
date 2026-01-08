@@ -1,15 +1,18 @@
 import sys
-import os
 import asyncio
-import aiohttp
-import pandas as pd
-import re
 import time
 import math
-from bs4 import BeautifulSoup
+import random
+import re
+from datetime import datetime
 from pathlib import Path
 
-# Static info scraper for FT summary/holdings pages (despite legacy filename).
+import aiohttp
+import pandas as pd
+
+# ==========================================
+# SYSTEM PATH SETUP
+# ==========================================
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parents[2]
 if str(project_root) not in sys.path:
@@ -18,212 +21,213 @@ if str(project_root) not in sys.path:
 from src.utils.logger import setup_logger
 from src.utils.browser_utils import get_random_headers
 from src.utils.db_connector import get_active_tickers
+from src.utils.path_manager import get_validation_path
 
 # ==========================================
 # CONFIGURATION
 # ==========================================
-logger = setup_logger("ft_static_info_scraper")
+logger = setup_logger("02_perf_ft_nav")
 
-CONCURRENCY = 50  
-BATCH_SIZE = 100  
+CONCURRENCY = 20
+BATCH_SIZE = 100
+REQUEST_TIMEOUT = 12
 
-class FTInfoScraper:
-    def __init__(self):
-        self.start_time = time.time()
-        
-        # Output Path
-        self.output_dir = project_root / "validation_output" / "Financial_Times" / "03_Detail_Static"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.output_file = self.output_dir / "ft_fund_info.csv"
-        
-        # Load Tickers
-        logger.info("📡 Fetching Active Tickers...")
-        self.tickers = get_active_tickers("Financial Times") 
-        logger.info(f"✅ Loaded {len(self.tickers)} active tickers.")
-        
-        self.total_processed = 0
-        self.total_success = 0
+PRICE_RE = re.compile(r"Price\s*\(([A-Z]{3})\)\s*</span>\s*<span[^>]*>([^<]+)</span>", re.IGNORECASE)
+ASOF_RE = re.compile(r"as of\s+([A-Za-z]{3}\s+\d{1,2}\s+\d{4})", re.IGNORECASE)
 
-    def _clean_text(self, text):
-        if not text: return None
-        return re.sub(r'\s+', ' ', text).strip()
+current_date = datetime.now().strftime('%Y-%m-%d')
+OUTPUT_FILE = get_validation_path(
+    "Financial_Times",
+    "02_Daily_NAV",
+    f"{current_date}/ft_nav_results.csv"
+)
+ERROR_FILE = OUTPUT_FILE.parent / "ft_nav_errors.csv"
+OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    def _extract_table_value(self, soup, label_pattern):
-        """Helper to extract value by label"""
-        target = soup.find(['th', 'span', 'div', 'td'], string=re.compile(label_pattern, re.IGNORECASE))
-        if target:
-            if target.name in ['th', 'td']:
-                sibling = target.find_next_sibling('td')
-                if sibling: return self._clean_text(sibling.text)
-            
-            parent = target.find_parent(['tr', 'div', 'li'])
-            if parent:
-                value = parent.find(class_=re.compile(r'value|data'))
-                if value: return self._clean_text(value.text)
-                val_td = parent.find_all('td')
-                if len(val_td) > 1: return self._clean_text(val_td[1].text)
+# ==========================================
+# HELPERS
+# ==========================================
+
+def _clean_float(value: str):
+    if value is None:
+        return None
+    cleaned = value.replace(',', '').strip()
+    try:
+        return float(cleaned)
+    except Exception:
         return None
 
-    # =========================================================================
-    # 1. SUMMARY PAGE
-    # =========================================================================
-    async def get_summary_data(self, session, ticker):
-        url = f"https://markets.ft.com/data/funds/tearsheet/summary?s={ticker}"
+
+def _parse_html(html: str):
+    if not html:
+        return None, None, None
+
+    price_match = PRICE_RE.search(html)
+    if not price_match:
+        return None, None, None
+
+    currency, price_raw = price_match.groups()
+    nav_price = _clean_float(price_raw)
+
+    date_match = ASOF_RE.search(html)
+    if date_match:
         try:
-            async with session.get(url, timeout=8) as response:
-                if response.status != 200: return None
-                html = await response.text()
-                soup = BeautifulSoup(html, 'lxml')
-                
-                data = {}
-                header = soup.select_one('h1.mod-tearsheet-overview__header__name')
-                data['name'] = self._clean_text(header.text) if header else None
-                
-                symbol_tag = soup.select_one('.mod-tearsheet-overview__header__symbol')
-                if symbol_tag:
-                    parts = symbol_tag.text.split(':')
-                    data['exchange'] = parts[-1].strip() if len(parts) > 1 else None
-                else:
-                    data['exchange'] = None
+            as_of_date = datetime.strptime(date_match.group(1), "%b %d %Y").strftime("%Y-%m-%d")
+        except Exception:
+            as_of_date = current_date
+    else:
+        as_of_date = current_date
 
-                data['isin_number'] = self._extract_table_value(soup, r'ISIN')
-                data['category'] = self._extract_table_value(soup, r'Morningstar Category|Category|Asset class')
-                data['inception_date'] = self._extract_table_value(soup, r'Launch date|Inception')
-                data['country'] = self._extract_table_value(soup, r'Domicile')
-                
-                # --- Market Cap & Style Extraction (Fixed Regex) ---
-                inv_style_raw = self._extract_table_value(soup, r'Investment style')
-                data['market_cap_size'] = None
-                data['investment_style'] = None
-                
-                if inv_style_raw:
-                    mc_match = re.search(r'Market Cap:\s*(.*?)(?=\s*Investment Style|$)', inv_style_raw, re.IGNORECASE)
-                    st_match = re.search(r'Investment Style:\s*(.*)', inv_style_raw, re.IGNORECASE)
-                    
-                    if mc_match: data['market_cap_size'] = self._clean_text(mc_match.group(1))
-                    if st_match: data['investment_style'] = self._clean_text(st_match.group(1))
-                
-                return data
-        except:
-            return None
+    return nav_price, currency, as_of_date
 
-    # =========================================================================
-    # 2. HOLDINGS PAGE
-    # =========================================================================
-    async def get_region_data(self, session, ticker):
-        url = f"https://markets.ft.com/data/funds/tearsheet/holdings?s={ticker}"
+
+def _build_url(ticker: str, asset_type: str) -> str:
+    base = "etfs" if "ETF" in str(asset_type).upper() else "funds"
+    return f"https://markets.ft.com/data/{base}/tearsheet/summary?s={ticker}"
+
+
+def _load_processed_tickers():
+    if not OUTPUT_FILE.exists():
+        return set()
+    try:
+        df = pd.read_csv(OUTPUT_FILE, usecols=["ticker"])
+        return set(df["ticker"].astype(str).str.strip())
+    except Exception:
+        return set()
+
+
+async def fetch_one(session, item, sem):
+    ticker = item["ticker"]
+    asset_type = item["asset_type"]
+    url = _build_url(ticker, asset_type)
+
+    async with sem:
         try:
-            async with session.get(url, timeout=8) as response:
-                if response.status != 200: return None
+            async with session.get(url, timeout=REQUEST_TIMEOUT) as response:
+                if response.status != 200:
+                    return {
+                        "ticker": ticker,
+                        "asset_type": asset_type,
+                        "source": "Financial Times",
+                        "nav_price": None,
+                        "currency": None,
+                        "as_of_date": None,
+                        "scrape_date": current_date,
+                        "status": f"HTTP {response.status}",
+                    }
                 html = await response.text()
-                soup = BeautifulSoup(html, 'lxml')
-                
-                header = soup.find(string=re.compile(r'Geographical breakdown|Asset allocation', re.IGNORECASE))
-                if header:
-                    table = header.find_parent('div').find_next('table')
-                    if table:
-                        rows = table.find('tbody').find_all('tr')
-                        if len(rows) > 0:
-                            cols = rows[0].find_all('td')
-                            if len(cols) >= 1:
-                                txt = self._clean_text(cols[0].text)
-                                if txt and "Cash" not in txt and "Other" not in txt:
-                                    return txt
-        except:
-            pass
-        return None
-
-    async def process_ticker(self, session, item, semaphore):
-        ticker = item['ticker']
-        asset_type = item['asset_type']
-        
-        async with semaphore:
-            summary_task = self.get_summary_data(session, ticker)
-            region_task = self.get_region_data(session, ticker)
-            
-            summary_data, region = await asyncio.gather(summary_task, region_task)
-
-            if not summary_data: return None 
-            
+        except Exception as exc:
             return {
                 "ticker": ticker,
                 "asset_type": asset_type,
                 "source": "Financial Times",
-                "name": summary_data.get('name'),
-                "isin_number": summary_data.get('isin_number'),
-                "category": summary_data.get('category'),
-                "inception_date": summary_data.get('inception_date'),
-                "exchange": summary_data.get('exchange'),
-                "region": region, 
-                "country": summary_data.get('country'),
-                "market_cap_size": summary_data.get('market_cap_size'),
-                "investment_style": summary_data.get('investment_style')
+                "nav_price": None,
+                "currency": None,
+                "as_of_date": None,
+                "scrape_date": current_date,
+                "status": f"Error: {exc}",
             }
 
-    async def scrape_batch(self, batch_tickers):
-        headers = get_random_headers()
-        
-        connector = aiohttp.TCPConnector(limit=CONCURRENCY)
-        async with aiohttp.ClientSession(headers=headers, connector=connector) as session:
-            sem = asyncio.Semaphore(CONCURRENCY)
-            tasks = [self.process_ticker(session, t, sem) for t in batch_tickers]
-            results = await asyncio.gather(*tasks)
-            return [r for r in results if r]
+    nav_price, currency, as_of_date = _parse_html(html)
+    if nav_price is None:
+        return {
+            "ticker": ticker,
+            "asset_type": asset_type,
+            "source": "Financial Times",
+            "nav_price": None,
+            "currency": currency,
+            "as_of_date": as_of_date,
+            "scrape_date": current_date,
+            "status": "Failed",
+        }
 
-    def save_incremental(self, results):
-        if not results: return
-        df = pd.DataFrame(results)
-        
-        desired_order = [
-            'ticker', 'asset_type', 'source', 'name', 'isin_number', 
-            'category', 'inception_date', 'exchange', 
-            'region', 'country', 'market_cap_size', 'investment_style'
-        ]
-        
-        final_cols = [c for c in desired_order if c in df.columns]
-        df = df[final_cols]
-        
-        use_header = not self.output_file.exists()
-        df.to_csv(self.output_file, mode='a', header=use_header, index=False)
+    return {
+        "ticker": ticker,
+        "asset_type": asset_type,
+        "source": "Financial Times",
+        "nav_price": nav_price,
+        "currency": currency,
+        "as_of_date": as_of_date,
+        "scrape_date": current_date,
+        "status": "Success",
+    }
 
-    async def run(self):
-        if not self.tickers: return
 
-        logger.info(f"🚀 Starting Turbo Scraper (Concurrency: {CONCURRENCY})")
-        logger.info(f"💾 Saving to {self.output_file}")
-        
-        total_items = len(self.tickers)
-        total_batches = math.ceil(total_items / BATCH_SIZE)
-        
+def _append_csv(df: pd.DataFrame, path: Path):
+    if df.empty:
+        return
+    use_header = not path.exists()
+    df.to_csv(path, mode="a", header=use_header, index=False)
+
+
+def _append_errors(df: pd.DataFrame):
+    if df.empty:
+        return
+    error_df = df[df["status"] != "Success"].copy()
+    if error_df.empty:
+        return
+    use_header = not ERROR_FILE.exists()
+    error_df.to_csv(ERROR_FILE, mode="a", header=use_header, index=False)
+
+
+async def run_batches(tickers):
+    connector = aiohttp.TCPConnector(limit=CONCURRENCY)
+    headers = get_random_headers()
+    async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
+        sem = asyncio.Semaphore(CONCURRENCY)
+        total = len(tickers)
+        total_batches = math.ceil(total / BATCH_SIZE)
+        completed = 0
+
         for i in range(total_batches):
-            batch_start = time.time()
-            start_idx = i * BATCH_SIZE
-            end_idx = start_idx + BATCH_SIZE
-            batch_tickers = self.tickers[start_idx:end_idx]
-            
-            results = await self.scrape_batch(batch_tickers)
-            
-            if results:
-                self.save_incremental(results)
-                self.total_success += len(results)
-            
-            self.total_processed += len(batch_tickers)
-            
-            duration = time.time() - batch_start
-            logger.info(f"Batch {i+1}/{total_batches} | Saved: {len(results)} | Total: {self.total_success}/{self.total_processed} | Time: {duration:.2f}s")
+            batch = tickers[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
+            if not batch:
+                continue
+
+            start = time.time()
+            results = await asyncio.gather(*[fetch_one(session, t, sem) for t in batch])
+            df = pd.DataFrame(results)
+
+            _append_csv(df, OUTPUT_FILE)
+            _append_errors(df)
+
+            completed += len(batch)
+            logger.info(
+                "Batch %s/%s | Saved %s rows | Done %s/%s | %.2fs",
+                i + 1,
+                total_batches,
+                len(df),
+                completed,
+                total,
+                time.time() - start,
+            )
+
+            await asyncio.sleep(random.uniform(0.5, 1.2))
+
 
 async def main():
-    scraper = FTInfoScraper()
-    await scraper.run()
-    
-    total_duration = time.time() - scraper.start_time
-    logger.info("="*50)
-    logger.info(f"🎉 JOB COMPLETED")
-    logger.info(f"⏱️  Total Time: {total_duration/60:.2f} min")
-    logger.info(f"✅ Active Found: {scraper.total_success}")
-    logger.info("="*50)
+    start_time = time.time()
+
+    logger.info("📡 Fetching Active FT tickers...")
+    all_tickers = get_active_tickers("Financial Times")
+    if not all_tickers:
+        logger.warning("🚫 No active tickers found for Financial Times.")
+        return
+
+    processed = _load_processed_tickers()
+    todo = [t for t in all_tickers if t["ticker"] not in processed]
+
+    logger.info("📊 Total: %s | Skipped: %s | Remaining: %s", len(all_tickers), len(processed), len(todo))
+    if not todo:
+        logger.info("✅ All tickers already processed.")
+        return
+
+    await run_batches(todo)
+
+    logger.info("✅ FT NAV scraping finished in %.2f minutes", (time.time() - start_time) / 60)
+
 
 if __name__ == "__main__":
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())

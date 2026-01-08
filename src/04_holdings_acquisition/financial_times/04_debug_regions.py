@@ -49,7 +49,7 @@ async def scrape_regions_smart():
             print("✅ Data Loaded! Parsing...")
             
             # --- PARSING ---
-            soup = BeautifulSoup(content_html, 'lxml')
+            soup = BeautifulSoup(content_html, 'html.parser')
             data = []
             
             tables = soup.find_all('table')

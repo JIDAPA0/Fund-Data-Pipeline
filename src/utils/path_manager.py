@@ -171,7 +171,7 @@ SYNC_PERF_LOADER_NAV  = SYNC_PERF_DIR / "03_daily_nav_loader.py"
 SYNC_PERF_LOADER_DIV  = SYNC_PERF_DIR / "03_dividend_loader.py"
 SYNC_PERF_LOADER_HIST = SYNC_PERF_DIR / "03_price_history_loader.py"
 SYNC_PERF_GAP_CHECKER = SYNC_PERF_DIR / "04_nav_gap_checker.py"
-SYNC_PERF_ARCHIVER    = SYNC_PERF_DIR / "05_performance_archiver.py"
+SYNC_PERF_ARCHIVER    = SYNC_PERF_DIR / "04_performance_archiver.py"
 SYNC_PERF_ORCHESTRATOR = SYNC_PERF_DIR / "05_performance_sync_orchestrator.py"
 
 # --- 5.3 Detail Sync ---

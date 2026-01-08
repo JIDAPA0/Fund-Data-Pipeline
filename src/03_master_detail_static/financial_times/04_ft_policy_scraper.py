@@ -110,7 +110,7 @@ class FTPolicyScraper:
 
     def _extract_1y_from_html(self, html):
         if not html: return None
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, 'html.parser')
         tables = soup.find_all('table')
         
         for table in tables:
@@ -187,7 +187,7 @@ class FTPolicyScraper:
 
             # Process HTML
             if res_main:
-                soup = BeautifulSoup(res_main, 'lxml')
+                soup = BeautifulSoup(res_main, 'html.parser')
                 header = soup.select_one('h1.mod-tearsheet-overview__header__name')
                 if header: data['name'] = self._clean_text(header.text)
                 

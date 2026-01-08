@@ -42,7 +42,7 @@ class FTAssetAllocScraper:
 
     def parse(self, html):
         if not html: return [], None
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, 'html.parser')
         data = []
         as_of_date = None
         footer = soup.find(string=re.compile(r'As of\s+[A-Za-z]{3}'))

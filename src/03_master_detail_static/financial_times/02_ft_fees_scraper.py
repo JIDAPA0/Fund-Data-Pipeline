@@ -96,7 +96,7 @@ class FTFeesScraper:
             async with session.get(url, timeout=10) as response:
                 if response.status != 200: return data
                 html = await response.text()
-                soup = BeautifulSoup(html, 'lxml')
+                soup = BeautifulSoup(html, 'html.parser')
                 
                 # --- Get Name ---
                 header = soup.select_one('h1.mod-tearsheet-overview__header__name')
@@ -124,7 +124,7 @@ class FTFeesScraper:
             async with session.get(url, timeout=10) as response:
                 if response.status != 200: return data
                 html = await response.text()
-                soup = BeautifulSoup(html, 'lxml')
+                soup = BeautifulSoup(html, 'html.parser')
                 
                 module = soup.find('div', attrs={'data-module-name': 'TopHoldingsApp'})
                 if module:
