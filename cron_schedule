@@ -5,4 +5,5 @@
 # │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday=0)
 # │ │ │ │ │
 # │ │ │ │ │
-0 6 * * 1-5 cd /app && PYTHONPATH=/app /usr/bin/python src/05_db_synchronization/main_pipeline.py >> /app/logs/cron_main_pipeline.log 2>&1
+# Example (update path): Run integrity gate on weekdays at 06:00
+0 6 * * 1-5 cd /path/to/Fund_ETL && /bin/bash scripts/run_integrity_gate.sh >> /path/to/Fund_ETL/logs/cron_integrity_gate.log 2>&1
