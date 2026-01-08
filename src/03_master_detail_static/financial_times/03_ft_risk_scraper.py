@@ -123,7 +123,7 @@ class FTRiskScraper:
         if not html: return data
 
         try:
-            soup = BeautifulSoup(html, 'lxml')
+            soup = BeautifulSoup(html, 'html.parser')
             
             header = soup.select_one('h1.mod-tearsheet-overview__header__name')
             if header: data['name'] = self._clean_text(header.text)
@@ -175,7 +175,7 @@ class FTRiskScraper:
         if not html: return data
 
         try:
-            soup = BeautifulSoup(html, 'lxml')
+            soup = BeautifulSoup(html, 'html.parser')
 
             # --- Morningstar ---
             ms_container = soup.find(class_=re.compile(r'morningstar-rating'))

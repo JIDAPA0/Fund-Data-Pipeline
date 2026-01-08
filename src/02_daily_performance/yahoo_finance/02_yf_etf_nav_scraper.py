@@ -75,7 +75,7 @@ def fetch_via_web_scraping(ticker):
         
         if response.status_code != 200: return None
             
-        soup = BeautifulSoup(response.text, 'lxml')
+        soup = BeautifulSoup(response.text, 'html.parser')
         
         price_tag = soup.find('fin-streamer', {'data-field': 'regularMarketPrice'})
         if not price_tag:

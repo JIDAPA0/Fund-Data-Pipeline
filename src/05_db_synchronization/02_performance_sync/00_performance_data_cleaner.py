@@ -20,7 +20,7 @@ print(f"ℹ️  Project Root: {project_root}")
 sys.path.append(str(project_root))
 
 try:
-    from src.utils.path_manager import DATA_PERFORMANCE_DIR, DATA_STORE_DIR
+    from src.utils.path_manager import DATA_PERFORMANCE_DIR, DATA_STORE_DIR, VALIDATION_DIR
 except ImportError as e:
     print(f"❌ Import Error: {e}")
     sys.exit(1)
@@ -31,7 +31,10 @@ except ImportError as e:
 RAW_DIRS = [
     DATA_PERFORMANCE_DIR / "financial_times",
     DATA_PERFORMANCE_DIR / "yahoo_finance",
-    DATA_PERFORMANCE_DIR / "stock_analysis"
+    DATA_PERFORMANCE_DIR / "stock_analysis",
+    VALIDATION_DIR / "Financial_Times" / "02_Daily_NAV",
+    VALIDATION_DIR / "Yahoo_Finance" / "02_Daily_NAV",
+    VALIDATION_DIR / "Stock_Analysis" / "02_Daily_NAV",
 ]
 
 CLEAN_DIR = DATA_STORE_DIR / "03_staging"
@@ -52,12 +55,13 @@ def load_and_merge_csvs():
             print(f"   ⚠️  Folder not found (Skipping): {folder.name}")
             continue
             
-        csv_files = list(folder.glob("*.csv"))
+        csv_files = list(folder.rglob("*.csv"))
         if not csv_files:
             print(f"   ⚠️  Folder exists but empty: {folder.name}")
 
         for csv_file in csv_files:
-            if "error" in csv_file.name or "log" in csv_file.name:
+            lower_name = csv_file.name.lower()
+            if any(x in lower_name for x in ["error", "log", "repair"]):
                 continue
             
             try:
@@ -68,12 +72,12 @@ def load_and_merge_csvs():
                 
                 
                 if 'source' not in df.columns:
-                    folder_str = str(folder).lower()
-                    if 'financial_times' in folder_str:
+                    folder_str = str(csv_file).lower()
+                    if 'financial_times' in folder_str or 'financial times' in folder_str:
                         df['source'] = 'Financial Times'
-                    elif 'yahoo_finance' in folder_str:
+                    elif 'yahoo_finance' in folder_str or 'yahoo finance' in folder_str:
                         df['source'] = 'Yahoo Finance'
-                    elif 'stock_analysis' in folder_str:
+                    elif 'stock_analysis' in folder_str or 'stock analysis' in folder_str:
                         df['source'] = 'Stock Analysis'
                 
                 df['origin_file'] = csv_file.name

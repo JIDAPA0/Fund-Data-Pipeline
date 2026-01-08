@@ -1,6 +1,7 @@
 import asyncio
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
+from bs4 import FeatureNotFound
 import time
 import csv
 from datetime import datetime
@@ -90,6 +91,12 @@ async def get_website_total_count(page) -> int:
         return 0
     except Exception: return 0
 
+def build_soup(content: str) -> BeautifulSoup:
+    try:
+        return BeautifulSoup(content, 'lxml')
+    except FeatureNotFound:
+        return BeautifulSoup(content, 'html.parser')
+
 async def repair_missing_name(browser, ticker):
     try:
         context = await browser.new_context(user_agent=get_random_user_agent())
@@ -158,6 +165,44 @@ def extract_full_table_data(soup: BeautifulSoup, asset_type_label: str) -> List[
             })
     return extracted_data
 
+async def extract_dom_rows(page, asset_type_label: str) -> List[Dict[str, str]]:
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    rows = await page.eval_on_selector_all(
+        'table tbody tr',
+        """rows => rows.map(row => {
+            const link = row.querySelector('a[href*="/quote/"]');
+            let ticker = "";
+            let name = "";
+            if (link) {
+                ticker = (link.textContent || "").trim().split(" ")[0];
+                name = (link.getAttribute("title") || "").trim();
+            }
+            if (!name) {
+                const titleSpan = row.querySelector('span[title]');
+                if (titleSpan) name = (titleSpan.textContent || "").trim();
+            }
+            if (!name) {
+                const cells = row.querySelectorAll('td, div');
+                if (cells.length > 1) name = (cells[1].textContent || "").trim();
+            }
+            return { ticker, name };
+        })"""
+    )
+    items = []
+    for row in rows or []:
+        ticker = (row.get("ticker") or "").strip()
+        name = (row.get("name") or "").strip() or "N/A"
+        if ticker and not ticker.isdigit() and 1 <= len(ticker) < 15 and re.match(r'^[A-Z0-9.\-]+$', ticker, re.IGNORECASE):
+            items.append({
+                'ticker': ticker,
+                'asset_type': asset_type_label,
+                'name': name,
+                'status': 'new',
+                'source': 'Yahoo Finance',
+                'date_added': current_date
+            })
+    return items
+
 # ==========================================
 # SCRAPING LOGIC
 # ==========================================
@@ -175,7 +220,12 @@ async def scrape_single_category(sem, browser, asset_key: str, category_name: st
             locale="en-US"
         )
         
-        await context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
+        async def route_handler(route):
+            if route.request.resource_type in ["image", "media", "font"]:
+                await route.abort()
+            else:
+                await route.continue_()
+        await context.route("**/*", route_handler)
 
         page = await context.new_page()
         
@@ -196,7 +246,7 @@ async def scrape_single_category(sem, browser, asset_key: str, category_name: st
                     try: await page.wait_for_load_state("networkidle", timeout=5000)
                     except: pass
 
-                    try: await page.wait_for_selector('table tbody tr', timeout=3000)
+                    try: await page.wait_for_selector('table tbody tr', timeout=8000)
                     except: pass
                     
                     if start_index == 0: 
@@ -207,8 +257,13 @@ async def scrape_single_category(sem, browser, asset_key: str, category_name: st
                     
                     await mimic_reading(page, min_sec=0.5, max_sec=1.5)
                     
+                    await dismiss_popups(page)
                     content = await page.content()
-                    new_items_in_page = extract_full_table_data(BeautifulSoup(content, 'lxml'), asset_label)
+                    new_items_in_page = extract_full_table_data(build_soup(content), asset_label)
+                    if not new_items_in_page:
+                        row_count = await page.locator('table tbody tr').count()
+                        if row_count > 0:
+                            new_items_in_page = await extract_dom_rows(page, asset_label)
                     success = True
                 except Exception as e:
                     retry_count += 1

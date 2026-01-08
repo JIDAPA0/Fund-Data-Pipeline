@@ -13,7 +13,7 @@ from playwright.async_api import async_playwright
 # 1. CONFIGURATION
 # ==========================================
 CONCURRENT_TABS = 12
-TODAY_STR = "2025-12-29"
+TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 
 BASE_OUTPUT_DIR = Path("validation_output/Financial_Times/02_Price_And_Dividend_History") / TODAY_STR / "02_daily_performance"
 ETF_DIR = BASE_OUTPUT_DIR / "ETF"

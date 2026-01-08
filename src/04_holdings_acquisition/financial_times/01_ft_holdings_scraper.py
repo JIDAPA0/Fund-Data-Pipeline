@@ -55,7 +55,7 @@ class FTHoldingsScraper:
 
     def parse(self, html):
         if not html: return [], None
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, 'html.parser')
         data = []
         
         as_of_date = None

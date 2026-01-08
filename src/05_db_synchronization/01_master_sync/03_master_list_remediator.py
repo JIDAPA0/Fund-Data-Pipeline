@@ -27,9 +27,7 @@ def remediate_data():
     output_dir = DATA_MASTER_LIST_DIR / "04_ready_to_load" / today_str
     output_path = output_dir / "master_list_final.csv"
     
-    if output_path.exists():
-        logger.info("ℹ️  File already exists in '04_ready_to_load'. Skipping copy.")
-    elif input_path.exists():
+    if input_path.exists():
         logger.info("ℹ️  Copying valid file to '04_ready_to_load'...")
         output_dir.mkdir(parents=True, exist_ok=True)
         df = pd.read_csv(input_path)
