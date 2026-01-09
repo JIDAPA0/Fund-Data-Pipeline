@@ -345,6 +345,35 @@ def init_fund_holdings_table(engine):
         print(f"❌ สร้างตาราง stg_fund_holdings ไม่สำเร็จ: {e}")
         raise
 
+def init_fund_metrics_table(engine):
+    try:
+        create_table_sql = text("""
+            CREATE TABLE IF NOT EXISTS stg_fund_metrics (
+                id SERIAL PRIMARY KEY,
+                ticker VARCHAR(20) NOT NULL,
+                asset_type VARCHAR(20) NOT NULL,
+                source VARCHAR(50) NOT NULL,
+                metric_type VARCHAR(50) NOT NULL,
+                metric_name VARCHAR(255) NOT NULL,
+                column_name VARCHAR(100),
+                value_raw TEXT,
+                value_num DECIMAL(20, 6),
+                as_of_date DATE,
+                row_hash VARCHAR(64),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_stg_fund_metrics_key UNIQUE (
+                    ticker, asset_type, source, metric_type, metric_name, column_name, as_of_date
+                )
+            );
+        """)
+        with engine.connect() as conn:
+            conn.execute(create_table_sql)
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_stg_metrics_ticker ON stg_fund_metrics(ticker);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_stg_metrics_type ON stg_fund_metrics(metric_type);"))
+    except Exception as e:
+        print(f"❌ สร้างตาราง stg_fund_metrics ไม่สำเร็จ: {e}")
+        raise
+
 # ----------------------------------------------------------------------
 # HELPER FUNCTIONS
 # ----------------------------------------------------------------------
@@ -390,7 +419,8 @@ def upsert_method(table, conn, keys, data_iter):
         'stg_fund_fees': 'uq_stg_fund_fees_key',
         'stg_fund_risk': 'uq_stg_fund_risk_key',
         'stg_fund_policy': 'uq_stg_fund_policy_key',
-        'stg_fund_holdings': 'uq_stg_holdings_key' 
+        'stg_fund_holdings': 'uq_stg_holdings_key',
+        'stg_fund_metrics': 'uq_stg_fund_metrics_key',
     }
     
     table_name = table.table.name

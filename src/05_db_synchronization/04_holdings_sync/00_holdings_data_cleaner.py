@@ -18,6 +18,7 @@ HOLDINGS_OUT = STAGING_DIR / "holdings_clean.csv"
 ALLOC_OUT = STAGING_DIR / "allocations_clean.csv"
 SECTOR_OUT = STAGING_DIR / "sectors_clean.csv"
 REGION_OUT = STAGING_DIR / "regions_clean.csv"
+METRICS_OUT = STAGING_DIR / "fund_metrics_clean.csv"
 
 HOLDINGS_COLUMNS = [
     "ticker",
@@ -46,6 +47,17 @@ ALLOC_COLUMNS = [
     "value_short",
 ]
 
+METRICS_COLUMNS = [
+    "ticker",
+    "asset_type",
+    "source",
+    "metric_type",
+    "metric_name",
+    "column_name",
+    "value_raw",
+    "value_num",
+    "as_of_date",
+]
 
 def reset_output(path: Path):
     if path.exists():
@@ -411,16 +423,94 @@ def process_ft_regions():
     return total
 
 
+def _extract_metrics(df, metric_type, metric_col, column_col, value_col, date_col):
+    out = pd.DataFrame(index=df.index)
+    out["ticker"] = df.get("ticker")
+    out["asset_type"] = df.get("asset_type")
+    out["source"] = "Yahoo Finance"
+    out["metric_type"] = metric_type
+    out["metric_name"] = df.get(metric_col) if metric_col else None
+    out["column_name"] = df.get(column_col) if column_col else None
+    out["value_raw"] = df.get(value_col) if value_col else None
+    out["value_num"] = df.get(value_col) if value_col else None
+    out["as_of_date"] = df.get(date_col) if date_col else None
+
+    out["as_of_date"] = out["as_of_date"].apply(to_date)
+    out["value_num"] = out["value_num"].apply(to_float)
+    out = out.dropna(subset=["ticker", "metric_name"])
+    return out
+
+
+def process_yf_bond_ratings():
+    total = 0
+    ratings_dir = YF_DIR / "Bond_Ratings"
+    if not ratings_dir.exists():
+        return total
+
+    for f in ratings_dir.glob("*.csv"):
+        df = safe_read_csv(f)
+        if df is None or df.empty:
+            continue
+        df.columns = [c.strip().lower() for c in df.columns]
+        metric_col = "rating" if "rating" in df.columns else "metric" if "metric" in df.columns else None
+        date_col = "updated_at" if "updated_at" in df.columns else None
+        out = _extract_metrics(df, "bond_rating", metric_col, None, "value", date_col)
+        if not out.empty:
+            out["column_name"] = "fund"
+        total += append_df(out, METRICS_OUT, METRICS_COLUMNS)
+    return total
+
+
+def process_yf_equity_holdings():
+    total = 0
+    equity_dir = YF_DIR / "Equity_Holdings"
+    if not equity_dir.exists():
+        return total
+
+    for f in equity_dir.glob("*.csv"):
+        df = safe_read_csv(f)
+        if df is None or df.empty:
+            continue
+        df.columns = [c.strip().lower() for c in df.columns]
+        metric_col = "metric" if "metric" in df.columns else None
+        column_col = "column_name" if "column_name" in df.columns else None
+        date_col = "updated_at" if "updated_at" in df.columns else None
+        out = _extract_metrics(df, "equity_statistics", metric_col, column_col, "value", date_col)
+        total += append_df(out, METRICS_OUT, METRICS_COLUMNS)
+    return total
+
+
+def process_yf_bond_holdings():
+    total = 0
+    bond_dir = YF_DIR / "Bond_Holdings"
+    if not bond_dir.exists():
+        return total
+
+    for f in bond_dir.glob("*.csv"):
+        df = safe_read_csv(f)
+        if df is None or df.empty:
+            continue
+        df.columns = [c.strip().lower() for c in df.columns]
+        metric_col = "metric" if "metric" in df.columns else None
+        column_col = "column_name" if "column_name" in df.columns else None
+        date_col = "updated_at" if "updated_at" in df.columns else None
+        out = _extract_metrics(df, "bond_statistics", metric_col, column_col, "value", date_col)
+        total += append_df(out, METRICS_OUT, METRICS_COLUMNS)
+    return total
+
+
 def main():
     reset_output(HOLDINGS_OUT)
     reset_output(ALLOC_OUT)
     reset_output(SECTOR_OUT)
     reset_output(REGION_OUT)
+    reset_output(METRICS_OUT)
 
     total_holdings = 0
     total_alloc = 0
     total_sector = 0
     total_region = 0
+    total_metrics = 0
 
     total_holdings += process_ft_holdings()
     total_holdings += process_yf_holdings()
@@ -435,10 +525,15 @@ def main():
 
     total_region += process_ft_regions()
 
+    total_metrics += process_yf_bond_ratings()
+    total_metrics += process_yf_equity_holdings()
+    total_metrics += process_yf_bond_holdings()
+
     print(f"✅ Holdings cleaned: {total_holdings} rows")
     print(f"✅ Allocations cleaned: {total_alloc} rows")
     print(f"✅ Sectors cleaned: {total_sector} rows")
     print(f"✅ Regions cleaned: {total_region} rows")
+    print(f"✅ Fund metrics cleaned: {total_metrics} rows")
 
 
 if __name__ == "__main__":

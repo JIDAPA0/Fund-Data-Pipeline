@@ -7,6 +7,7 @@ import re
 import time
 import math
 import random
+import argparse
 from datetime import datetime
 from pathlib import Path
 from playwright.async_api import async_playwright
@@ -34,21 +35,45 @@ BASE_OUTPUT_DIR = project_root / "validation_output" / "Yahoo_Finance" / "04_Hol
 DIR_HOLDINGS = BASE_OUTPUT_DIR / "Holdings"
 DIR_SECTORS = BASE_OUTPUT_DIR / "Sectors"
 DIR_ALLOCATION = BASE_OUTPUT_DIR / "Allocation"
+DIR_BOND_RATINGS = BASE_OUTPUT_DIR / "Bond_Ratings"
+DIR_EQUITY_HOLDINGS = BASE_OUTPUT_DIR / "Equity_Holdings"
+DIR_BOND_HOLDINGS = BASE_OUTPUT_DIR / "Bond_Holdings"
 
 
 MISSING_REPORT_FILE = BASE_OUTPUT_DIR / "yf_holdings_missing_report.csv"
 
 # Create Directories
-for d in [DIR_HOLDINGS, DIR_SECTORS, DIR_ALLOCATION]:
+for d in [
+    DIR_HOLDINGS,
+    DIR_SECTORS,
+    DIR_ALLOCATION,
+    DIR_BOND_RATINGS,
+    DIR_EQUITY_HOLDINGS,
+    DIR_BOND_HOLDINGS,
+]:
     d.mkdir(parents=True, exist_ok=True)
 
 class YFHoldingsScraper:
-    def __init__(self):
+    def __init__(self, tickers=None, default_asset_type="Fund"):
         self.start_time = time.time()
         
-        logger.info("📡 Fetching Active Tickers from DB...")
-        self.tickers = get_active_tickers("Yahoo Finance") 
-        logger.info(f"✅ Total Tickers to Process: {len(self.tickers)}")
+        if tickers:
+            normalized = []
+            for item in tickers:
+                if isinstance(item, dict):
+                    ticker = item.get("ticker")
+                    asset_type = item.get("asset_type") or default_asset_type
+                else:
+                    ticker = str(item)
+                    asset_type = default_asset_type
+                if ticker:
+                    normalized.append({"ticker": ticker, "asset_type": asset_type})
+            self.tickers = normalized
+            logger.info(f"✅ Using provided tickers: {len(self.tickers)}")
+        else:
+            logger.info("📡 Fetching Active Tickers from DB...")
+            self.tickers = get_active_tickers("Yahoo Finance") 
+            logger.info(f"✅ Total Tickers to Process: {len(self.tickers)}")
         
         self.total_processed = 0
         self.total_success = 0
@@ -66,6 +91,80 @@ class YFHoldingsScraper:
 
     def get_random_ua(self):
         return random.choice(self.user_agents)
+
+    def _clean_text(self, text):
+        if text is None:
+            return ""
+        return re.sub(r"\s+", " ", str(text).replace("\xa0", " ")).strip()
+
+    def _looks_like_symbol(self, text):
+        return bool(re.match(r"^[A-Z0-9.-]{1,12}$", str(text).strip()))
+
+    async def _extract_table(self, section):
+        try:
+            if await section.count() == 0:
+                return None
+            table = section.locator("table").first
+            if await table.count() == 0:
+                return None
+            return await table.evaluate(
+                """
+                table => {
+                    const headers = Array.from(table.querySelectorAll('thead th'))
+                        .map(th => th.innerText.trim())
+                        .filter(h => h.length > 0);
+                    const rows = Array.from(table.querySelectorAll('tbody tr')).map(tr =>
+                        Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim())
+                    );
+                    return { headers, rows };
+                }
+                """
+            )
+        except Exception:
+            return None
+
+    async def _extract_content_blocks(self, section):
+        rows = []
+        try:
+            if await section.count() == 0:
+                return rows
+            blocks = section.locator('div[class*="content"]')
+            cnt = await blocks.count()
+            for i in range(cnt):
+                raw = await blocks.nth(i).inner_text()
+                parts = [self._clean_text(p) for p in raw.split("\n")]
+                parts = [p for p in parts if p]
+                if parts:
+                    rows.append(parts)
+        except Exception:
+            return rows
+        return rows
+
+    def _expand_metric_table(self, table_data):
+        out = []
+        if not table_data:
+            return out
+        headers = [self._clean_text(h) for h in table_data.get("headers", []) if self._clean_text(h)]
+        rows = table_data.get("rows", [])
+        for row in rows:
+            row = [self._clean_text(c) for c in row if c is not None]
+            if len(row) < 2:
+                continue
+            metric = row[0]
+            values = row[1:]
+            if headers:
+                if len(headers) == len(row):
+                    value_headers = headers[1:]
+                elif len(headers) == len(values):
+                    value_headers = headers
+                else:
+                    value_headers = [f"value_{i+1}" for i in range(len(values))]
+            else:
+                value_headers = [f"value_{i+1}" for i in range(len(values))]
+
+            for col_name, val in zip(value_headers, values):
+                out.append({"metric": metric, "column_name": col_name, "value": val})
+        return out
 
     async def log_missing(self, ticker, asset_type, reason):
         try:
@@ -120,8 +219,19 @@ class YFHoldingsScraper:
         f_hold = DIR_HOLDINGS / f"{safe_ticker}_{asset_type}_holdings.csv"
         f_sect = DIR_SECTORS / f"{safe_ticker}_{asset_type}_sectors.csv"
         f_alloc = DIR_ALLOCATION / f"{safe_ticker}_{asset_type}_allocation.csv"
+        f_bond_ratings = DIR_BOND_RATINGS / f"{safe_ticker}_{asset_type}_bond_ratings.csv"
+        f_equity_holdings = DIR_EQUITY_HOLDINGS / f"{safe_ticker}_{asset_type}_equity_holdings.csv"
+        f_bond_holdings = DIR_BOND_HOLDINGS / f"{safe_ticker}_{asset_type}_bond_holdings.csv"
         
-        if f_hold.exists() or f_sect.exists() or f_alloc.exists():
+        expected_files = [
+            f_hold,
+            f_sect,
+            f_alloc,
+            f_bond_ratings,
+            f_equity_holdings,
+            f_bond_holdings,
+        ]
+        if all(f.exists() for f in expected_files):
             return "SKIPPED"
 
         page = await context.new_page()
@@ -130,6 +240,7 @@ class YFHoldingsScraper:
         
         data_found = False
         fail_reason = "UNKNOWN"
+        page_ok = False
         
         try:
             await page.goto(url, timeout=60000, wait_until="domcontentloaded")
@@ -150,23 +261,37 @@ class YFHoldingsScraper:
                 await self.log_missing(ticker, asset_type, "INVALID_TICKER (Still Lookup)")
                 return "INVALID_TICKER"
 
+            page_ok = True
             await asyncio.sleep(2) 
             await self.dismiss_popups(page)
+            try:
+                await page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
             
             # --- 2. SCRAPE DATA ---
             # Top Holdings
             holdings_data = []
             section = page.locator('section[data-testid="top-holdings"]')
             if await section.count() > 0:
-                rows = section.locator('div[class*="content"]')
-                cnt = await rows.count()
-                for i in range(cnt):
-                    txt = await rows.nth(i).inner_text()
-                    parts = txt.split('\n')
+                rows = await self._extract_content_blocks(section)
+                for parts in rows:
+                    if len(parts) < 2:
+                        continue
+                    value = parts[-1]
+                    symbol = "-"
+                    name = parts[0]
                     if len(parts) >= 3:
-                        holdings_data.append({'symbol': parts[1], 'name': parts[0], 'value': parts[-1]})
-                    elif len(parts) == 2:
-                        holdings_data.append({'symbol': '-', 'name': parts[0], 'value': parts[1]})
+                        first, second = parts[0], parts[1]
+                        if self._looks_like_symbol(first) and not self._looks_like_symbol(second):
+                            symbol, name = first, second
+                        elif self._looks_like_symbol(second) and not self._looks_like_symbol(first):
+                            symbol, name = second, first
+                        else:
+                            symbol, name = first, second
+                    elif len(parts) == 2 and self._looks_like_symbol(parts[0]) and "%" in parts[1]:
+                        symbol = parts[0]
+                    holdings_data.append({'symbol': symbol, 'name': name, 'value': value})
 
             if not holdings_data:
                 tables = page.locator('table')
@@ -198,11 +323,8 @@ class YFHoldingsScraper:
             sector_data = []
             sec_section = page.locator('section[data-testid*="sector-weightings"]')
             if await sec_section.count() > 0:
-                rows = sec_section.locator('div[class*="content"]')
-                cnt = await rows.count()
-                for i in range(cnt):
-                    txt = await rows.nth(i).inner_text()
-                    parts = txt.split('\n')
+                rows = await self._extract_content_blocks(sec_section)
+                for parts in rows:
                     if len(parts) >= 2:
                         sector_data.append({'sector': parts[0], 'value': parts[-1]})
             
@@ -214,22 +336,14 @@ class YFHoldingsScraper:
                 df.to_csv(f_sect, index=False)
                 data_found = True
 
-            # Asset Allocation
+            # Overall Portfolio Composition (%)
             alloc_data = []
-            tables = page.locator('table')
-            cnt_tbl = await tables.count()
-            for i in range(cnt_tbl):
-                rows = tables.nth(i).locator('tbody tr')
-                if await rows.count() == 0: continue
-                first_cell = await rows.nth(0).locator('td').first.inner_text()
-                if any(k in first_cell for k in ['Cash', 'Stocks', 'Bonds']):
-                    for r in range(await rows.count()):
-                        cols = rows.nth(r).locator('td')
-                        if await cols.count() >= 2:
-                            cat = await cols.nth(0).inner_text()
-                            val = await cols.nth(1).inner_text()
-                            alloc_data.append({'category': cat, 'value': val})
-                    if alloc_data: break
+            alloc_section = page.locator('section[data-testid="portfolio-composition"]')
+            alloc_table = await self._extract_table(alloc_section)
+            if alloc_table:
+                for row in alloc_table.get("rows", []):
+                    if len(row) >= 2:
+                        alloc_data.append({'category': self._clean_text(row[0]), 'value': self._clean_text(row[1])})
 
             if alloc_data:
                 df = pd.DataFrame(alloc_data)
@@ -239,7 +353,68 @@ class YFHoldingsScraper:
                 df.to_csv(f_alloc, index=False)
                 data_found = True
 
-            
+            # Bond Ratings
+            bond_rating_data = []
+            rating_section = page.locator('section[data-testid="bond-ratings"]')
+            rating_table = await self._extract_table(rating_section)
+            if rating_table:
+                for row in rating_table.get("rows", []):
+                    if len(row) >= 2:
+                        bond_rating_data.append({'rating': self._clean_text(row[0]), 'value': self._clean_text(row[1])})
+
+            if bond_rating_data:
+                df = pd.DataFrame(bond_rating_data)
+                df['ticker'] = ticker
+                df['asset_type'] = asset_type
+                df['updated_at'] = datetime.now().strftime('%Y-%m-%d')
+                df.to_csv(f_bond_ratings, index=False)
+                data_found = True
+
+            # Equity Holdings (metrics)
+            equity_holdings_data = []
+            equity_section = page.locator('section[data-testid="equity-holdings"]')
+            equity_table = await self._extract_table(equity_section)
+            if equity_table:
+                equity_holdings_data = self._expand_metric_table(equity_table)
+
+            if equity_holdings_data:
+                df = pd.DataFrame(equity_holdings_data)
+                df['ticker'] = ticker
+                df['asset_type'] = asset_type
+                df['updated_at'] = datetime.now().strftime('%Y-%m-%d')
+                df.to_csv(f_equity_holdings, index=False)
+                data_found = True
+
+            # Bond Holdings (metrics)
+            bond_holdings_data = []
+            bond_section = page.locator('section[data-testid="bond-holdings"]')
+            bond_table = await self._extract_table(bond_section)
+            if bond_table:
+                bond_holdings_data = self._expand_metric_table(bond_table)
+
+            if bond_holdings_data:
+                df = pd.DataFrame(bond_holdings_data)
+                df['ticker'] = ticker
+                df['asset_type'] = asset_type
+                df['updated_at'] = datetime.now().strftime('%Y-%m-%d')
+                df.to_csv(f_bond_holdings, index=False)
+                data_found = True
+
+            # Optional sections: write empty files so we can skip next run
+            if page_ok:
+                if not f_bond_ratings.exists():
+                    pd.DataFrame(columns=["ticker", "asset_type", "updated_at", "rating", "value"]).to_csv(
+                        f_bond_ratings, index=False
+                    )
+                if not f_equity_holdings.exists():
+                    pd.DataFrame(columns=["ticker", "asset_type", "updated_at", "metric", "column_name", "value"]).to_csv(
+                        f_equity_holdings, index=False
+                    )
+                if not f_bond_holdings.exists():
+                    pd.DataFrame(columns=["ticker", "asset_type", "updated_at", "metric", "column_name", "value"]).to_csv(
+                        f_bond_holdings, index=False
+                    )
+
             if not data_found:
                 fail_reason = "NO_HOLDINGS_DATA (Page loaded but empty)"
                 await self.log_missing(ticker, asset_type, fail_reason)
@@ -296,4 +471,36 @@ class YFHoldingsScraper:
 if __name__ == "__main__":
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(YFHoldingsScraper().run())
+    parser = argparse.ArgumentParser(description="Yahoo Finance Holdings Scraper")
+    parser.add_argument(
+        "--tickers",
+        help="Comma/space separated tickers, optionally TICKER:ASSET_TYPE",
+    )
+    parser.add_argument(
+        "--asset-type",
+        default="Fund",
+        help="Default asset type for tickers without explicit type",
+    )
+    args = parser.parse_args()
+
+    def parse_ticker_list(raw, default_asset_type):
+        if not raw:
+            return None
+        items = re.split(r"[,\s]+", raw.strip())
+        tickers = []
+        for item in items:
+            if not item:
+                continue
+            if ":" in item:
+                ticker, asset_type = item.split(":", 1)
+                ticker = ticker.strip()
+                asset_type = asset_type.strip() or default_asset_type
+            else:
+                ticker = item.strip()
+                asset_type = default_asset_type
+            if ticker:
+                tickers.append({"ticker": ticker, "asset_type": asset_type})
+        return tickers or None
+
+    tickers = parse_ticker_list(args.tickers, args.asset_type)
+    asyncio.run(YFHoldingsScraper(tickers=tickers, default_asset_type=args.asset_type).run())

@@ -1,53 +1,48 @@
 import os
+import sys
 import csv
 import asyncio
 import pandas as pd
-import configparser
 from datetime import datetime
 from pathlib import Path
 import time
 import random
 from playwright.async_api import async_playwright, TimeoutError
 from typing import List, Dict, Any, Set
+from dotenv import load_dotenv
+
+# ==========================================
+# SYSTEM PATH SETUP
+# ==========================================
+current_dir = Path(__file__).resolve().parent
+project_root = current_dir.parents[2]
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from src.utils.logger import setup_logger
+from src.utils.db_connector import get_active_tickers
 
 # --- ⚙️ CONFIGURATION ---------------------------------------------------------
 
-INPUT_CSV_PATH = "validation_output/Stock_Analysis/01_List_Master/2025-12-03/sa_etf_master.csv"
-
-
-BASE_OUTPUT_DIR = Path("validation_output/Stock_Analysis/04_Holdings")
+INPUT_CSV_PATH = os.getenv("SA_MASTER_CSV")
+BASE_OUTPUT_DIR = project_root / "validation_output" / "Stock_Analysis" / "04_Holdings"
 
 # Base URL
 BASE_URL = "https://stockanalysis.com/etf/"
 
 
-BATCH_SIZE = 500 
+BATCH_SIZE = 500
+MAX_CONCURRENT_TICKERS = 4
 
+# Load env for Stock Analysis credentials
+load_dotenv(project_root / ".env")
+LOGIN_URL = os.getenv("SA_LOGIN_URL", "https://stockanalysis.com/login")
+EMAIL = os.getenv("SA_EMAIL")
+PASS = os.getenv("SA_PASSWORD")
 
-MAX_CONCURRENT_TICKERS = 4 
-
-
-def get_config(filename='config/database.ini', section='stock_analysis'):
-    parser = configparser.ConfigParser()
-    if not os.path.exists(filename):
-        filename = os.path.join(os.getcwd(), filename)
-        if not os.path.exists(filename):
-             raise FileNotFoundError(f"Configuration file not found at: {filename}")
-    parser.read(filename)
-    if parser.has_section(section):
-        return dict(parser.items(section))
-    else:
-        raise Exception(f'Section {section} not found in the {filename} file')
-
-try:
-    CONFIG = get_config()
-except Exception as e:
-    print(f"FATAL ERROR: Failed to load configuration. Error: {e}")
-    exit(1) 
-
-LOGIN_URL = CONFIG.get('login_url')
-EMAIL = CONFIG.get('email')
-PASS = CONFIG.get('password')
+logger = setup_logger("01_sa_holdings_scraper")
+if not EMAIL or not PASS:
+    logger.warning("⚠️ Missing SA_EMAIL or SA_PASSWORD in .env")
 
 
 # --- Utility Functions ----------------------------------------------------
@@ -69,7 +64,7 @@ def get_processed_tickers(target_dir: Path) -> Set[str]:
 
 
 async def login_to_sa(page):
-    print(f"🔐 Attempting Login as {EMAIL}...")
+    logger.info("🔐 Attempting Login as %s", EMAIL or "UNKNOWN")
     try:
         await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
         
@@ -83,18 +78,17 @@ async def login_to_sa(page):
             await page.wait_for_url(lambda url: "login" not in url, timeout=30000)
             
             if "login" not in page.url:
-                print("✅ Login Successful!")
+                logger.info("✅ Login Successful!")
                 return True 
             else:
-                print("❌ Login Failed (Still on login page)")
+                logger.error("❌ Login Failed (Still on login page)")
                 return False 
         else:
-            
-            print("✅ Session already authenticated or not required.")
+            logger.info("✅ Session already authenticated or not required.")
             return True
 
     except Exception as e:
-        print(f"❌ Critical Login Error: {e}")
+        logger.error("❌ Critical Login Error: %s", e)
         return False
 
 
@@ -152,7 +146,12 @@ def generate_report(output_dir, start_time, total, success, skipped):
         f.write(f"⚠️  No Data / Skipped   : {skipped:,}\n")
         f.write(f"⏱️  Time Taken          : {minutes}m {seconds:.2f}s\n")
         f.write("============================================================\n")
-    print(f"\n📝 Report: {report_path}")
+    logger.info("📝 Report: %s", report_path)
+
+
+def fetch_tickers_from_db():
+    rows = get_active_tickers("Stock Analysis")
+    return [r.get("ticker") for r in rows if r.get("ticker")]
 
 
 # 🛠️ NEW: Worker function for concurrent processing
@@ -190,7 +189,7 @@ async def worker(ticker: str, context, TODAY_DIR: Path, all_tickers: List[str], 
 
 
 async def main():
-    print("\n--- 🚀 STARTING HOLDINGS DOWNLOADER (SPEED MODE) ---")
+    logger.info("--- 🚀 STARTING HOLDINGS DOWNLOADER (SPEED MODE) ---")
     start_time = time.time()
     
     
@@ -198,25 +197,32 @@ async def main():
     TODAY_DIR = BASE_OUTPUT_DIR / today_str
     TODAY_DIR.mkdir(parents=True, exist_ok=True)
     
-    print(f"📂 Target Folder Created: {TODAY_DIR}") 
+    logger.info("📂 Target Folder Created: %s", TODAY_DIR)
 
     
-    try:
-        df = pd.read_csv(INPUT_CSV_PATH)
-        all_tickers = df['ticker'].tolist()
-        processed_tickers = get_processed_tickers(TODAY_DIR)
-        tickers_to_process = [t for t in all_tickers if t not in processed_tickers]
-        
-        print(f"📄 Loaded {len(all_tickers)} total tickers.")
-        print(f"💾 Found {len(processed_tickers)} tickers already processed (Skipping).")
-        print(f"⏳ {len(tickers_to_process)} tickers remaining to process.")
-        
-        if not tickers_to_process:
-            print("🎉 All tickers for today are already processed. Exiting.")
+    all_tickers = fetch_tickers_from_db()
+    if not all_tickers:
+        if INPUT_CSV_PATH and Path(INPUT_CSV_PATH).exists():
+            try:
+                df = pd.read_csv(INPUT_CSV_PATH)
+                all_tickers = df["ticker"].dropna().astype(str).tolist()
+                logger.warning("⚠️ DB tickers empty. Fallback to CSV: %s", INPUT_CSV_PATH)
+            except Exception as e:
+                logger.error("❌ Error reading fallback CSV: %s", e)
+                return
+        else:
+            logger.error("❌ No tickers available (DB empty and SA_MASTER_CSV not set)")
             return
-        
-    except Exception as e:
-        print(f"❌ Error reading Master CSV: {e}")
+
+    processed_tickers = get_processed_tickers(TODAY_DIR)
+    tickers_to_process = [t for t in all_tickers if t not in processed_tickers]
+    
+    logger.info("📄 Loaded %s total tickers.", len(all_tickers))
+    logger.info("💾 Found %s tickers already processed (Skipping).", len(processed_tickers))
+    logger.info("⏳ %s tickers remaining to process.", len(tickers_to_process))
+    
+    if not tickers_to_process:
+        logger.info("🎉 All tickers for today are already processed. Exiting.")
         return
 
     
@@ -230,7 +236,7 @@ async def main():
     
     async with async_playwright() as p:
         
-        user_data_dir = "./tmp/sa_session"
+        user_data_dir = project_root / "tmp" / "sa_session"
         context = await p.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
             headless=True,
@@ -241,11 +247,11 @@ async def main():
         page = await context.new_page()
         if not await login_to_sa(page):
             await context.close()
-            print("🚨 CRITICAL: Initial Login Failed. Please check credentials or wait for IP unblock.")
+            logger.error("🚨 CRITICAL: Initial Login Failed. Please check credentials or wait for IP unblock.")
             return
         await page.close() 
 
-        print(f"\n--- Starting Data Acquisition with {MAX_CONCURRENT_TICKERS} workers ---")
+        logger.info("--- Starting Data Acquisition with %s workers ---", MAX_CONCURRENT_TICKERS)
 
         
         tasks = []

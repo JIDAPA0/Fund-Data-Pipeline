@@ -24,6 +24,12 @@ from src.utils.db_connector import get_active_tickers
 logger = setup_logger("01_ft_full_scraper")
 OUTPUT_DIR = project_root / "validation_output" / "Financial_Times" / "04_Holdings"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+HOLDINGS_DIR = OUTPUT_DIR / "Holdings"
+ALLOC_DIR = OUTPUT_DIR / "Asset_Allocation"
+SECTOR_DIR = OUTPUT_DIR / "Sectors"
+REGION_DIR = OUTPUT_DIR / "Regions"
+for d in [HOLDINGS_DIR, ALLOC_DIR, SECTOR_DIR, REGION_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
 
 class FTFullScraper:
     def __init__(self):
@@ -31,9 +37,11 @@ class FTFullScraper:
         
         # Resume Logic: เช็คว่าทำไปแล้วหรือยัง
         self.processed_tickers = set()
-        for f in OUTPUT_DIR.glob("*_holdings.csv"):
-            safe_ticker = f.name.replace("_holdings.csv", "")
-            self.processed_tickers.add(safe_ticker)
+        for f in HOLDINGS_DIR.glob("*.csv"):
+            stem = f.stem
+            if stem.endswith("_holdings"):
+                safe_key = stem.replace("_holdings", "")
+                self.processed_tickers.add(safe_key)
 
         logger.info(f"✅ Total Tickers: {len(self.tickers_data)} | Already Scraped: {len(self.processed_tickers)}")
 
@@ -79,11 +87,14 @@ class FTFullScraper:
         url = self._get_url(ticker, atype)
         
         safe_ticker = ticker.replace(':', '_').replace('/', '_')
+        safe_key = f"{safe_ticker}_{atype}"
         
-        file_holdings = OUTPUT_DIR / f"{safe_ticker}_holdings.csv"
-        file_alloc = OUTPUT_DIR / f"{safe_ticker}_alloc.csv"
+        file_holdings = HOLDINGS_DIR / f"{safe_key}_holdings.csv"
+        file_alloc = ALLOC_DIR / f"{safe_key}_asset_alloc.csv"
+        file_sectors = SECTOR_DIR / f"{safe_key}_sectors.csv"
+        file_regions = REGION_DIR / f"{safe_key}_regions.csv"
 
-        if safe_ticker in self.processed_tickers or file_holdings.exists():
+        if safe_key in self.processed_tickers or file_holdings.exists():
             return None
 
         try:
@@ -104,7 +115,9 @@ class FTFullScraper:
             tables = await page.locator("table").all()
             
             holdings_data = []
-            allocations_data = []
+            asset_alloc_data = []
+            sector_data = []
+            region_data = []
 
             for tbl in tables:
                 headers = await tbl.locator("th").all_inner_texts()
@@ -152,8 +165,14 @@ class FTFullScraper:
                                 'asset_type': atype,
                                 'source': 'Financial Times',
                                 'as_of_date': global_date,
-                                'holding_name': name,
-                                'holding_weight': val
+                                'allocation_type': 'holdings',
+                                'item_name': name,
+                                'value_net': val,
+                                'holding_ticker': None,
+                                'shares_held': None,
+                                'market_value': None,
+                                'sector': None,
+                                'country': None,
                             })
 
                 # --- PROCESS ALLOCATION ---
@@ -183,14 +202,19 @@ class FTFullScraper:
                         val = self._clean_val(val)
                         
                         if name and val is not None and "total" not in name.lower() and "--" not in name:
-                            allocations_data.append({
+                            target = asset_alloc_data
+                            if "sector" in smart_cat.lower():
+                                target = sector_data
+                            elif "geography" in smart_cat.lower() or "region" in smart_cat.lower():
+                                target = region_data
+
+                            target.append({
                                 'ticker': ticker,
                                 'asset_type': atype,
                                 'source': 'Financial Times',
                                 'as_of_date': global_date,
-                                'category': smart_cat,
                                 'item_name': name,
-                                'weight': val
+                                'value_net': val
                             })
 
             # Save Files
@@ -199,12 +223,25 @@ class FTFullScraper:
                 pd.DataFrame(holdings_data).to_csv(file_holdings, index=False)
                 res_code = 1
             
-            if allocations_data:
-                pd.DataFrame(allocations_data).to_csv(file_alloc, index=False)
+            if asset_alloc_data:
+                pd.DataFrame(asset_alloc_data).to_csv(file_alloc, index=False)
+                res_code = 1
+            if sector_data:
+                pd.DataFrame(sector_data).to_csv(file_sectors, index=False)
+                res_code = 1
+            if region_data:
+                pd.DataFrame(region_data).to_csv(file_regions, index=False)
                 res_code = 1
 
             if res_code == 1:
-                logger.info(f"✅ Saved {ticker}: Holdings={len(holdings_data)}, Alloc={len(allocations_data)}")
+                logger.info(
+                    "✅ Saved %s: Holdings=%s, AssetAlloc=%s, Sectors=%s, Regions=%s",
+                    ticker,
+                    len(holdings_data),
+                    len(asset_alloc_data),
+                    len(sector_data),
+                    len(region_data),
+                )
                 return 1
             else:
                 return 0

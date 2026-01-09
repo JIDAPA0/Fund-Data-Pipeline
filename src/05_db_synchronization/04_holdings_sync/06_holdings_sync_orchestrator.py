@@ -17,7 +17,8 @@ PIPELINE = [
     {"name": "02 Holdings Hasher", "path": "src/05_db_synchronization/04_holdings_sync/02_holdings_hasher.py"},
     {"name": "03 Holdings Loader", "path": "src/05_db_synchronization/04_holdings_sync/03_holdings_loader.py"},
     {"name": "04 Allocations Loader", "path": "src/05_db_synchronization/04_holdings_sync/04_allocations_loader.py"},
-    {"name": "05 Holdings Archiver", "path": "src/05_db_synchronization/04_holdings_sync/05_holdings_archiver.py"},
+    {"name": "05 Fund Metrics Loader", "path": "src/05_db_synchronization/04_holdings_sync/06_fund_metrics_loader.py"},
+    {"name": "06 Holdings Archiver", "path": "src/05_db_synchronization/04_holdings_sync/05_holdings_archiver.py"},
 ]
 
 
