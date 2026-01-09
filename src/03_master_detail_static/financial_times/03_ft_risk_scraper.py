@@ -25,8 +25,8 @@ from src.utils.db_connector import get_active_tickers
 # ==========================================
 # CONFIGURATION
 # ==========================================
-logger = setup_logger("03_ft_risk_final_clean")
-CONCURRENCY = 5    # 🐢 Safe Speed
+logger = setup_logger("03_ft_risk_scraper")
+CONCURRENCY = 10     # ปรับความเร็วพอประมาณ
 BATCH_SIZE = 50    
 
 class FTRiskScraper:
@@ -62,24 +62,20 @@ class FTRiskScraper:
     def _extract_val(self, text):
         if not text: return None
         clean = text.strip()
-        if clean == '--' or clean == '-': return None
+        if clean in ['--', '-', '', 'NA']: return None
         try:
-            return clean.replace(',', '')
+            return clean.replace(',', '').replace('%', '')
         except: return None
 
     def _parse_date(self, text):
         if not text: return None
         try:
             clean_text = re.sub(r'\.$', '', text.strip())
+            # Format: Jan 08 2026
             match = re.search(r'([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})', clean_text)
             if match:
                 date_str = f"{match.group(1)} {match.group(2)} {match.group(3)}"
                 dt = datetime.strptime(date_str, "%b %d %Y")
-                return dt.strftime("%Y-%m-%d")
-            match_my = re.search(r'([A-Za-z]{3,9})\s+(\d{4})', clean_text)
-            if match_my:
-                date_str = f"1 {match_my.group(1)} {match_my.group(2)}"
-                dt = datetime.strptime(date_str, "%d %B %Y")
                 return dt.strftime("%Y-%m-%d")
         except: pass
         return None
@@ -104,7 +100,7 @@ class FTRiskScraper:
         return None
 
     # =========================================================================
-    # 1. RISK PAGE
+    # 1. RISK PAGE (1y, 3y, 5y, 10y)
     # =========================================================================
     async def get_risk_data(self, session, ticker, asset_type):
         base_url = self._get_base_url(asset_type)
@@ -112,11 +108,11 @@ class FTRiskScraper:
         
         data = {
             'name': None, 'updated_at': None,
-            'sharpe_ratio_1y': None, 'sharpe_ratio_3y': None, 'sharpe_ratio_5y': None,
-            'beta_1y': None, 'beta_3y': None, 'beta_5y': None,
-            'alpha_1y': None, 'alpha_3y': None, 'alpha_5y': None,
-            'standard_dev_1y': None, 'standard_dev_3y': None, 'standard_dev_5y': None,
-            'r_squared_1y': None, 'r_squared_3y': None, 'r_squared_5y': None
+            'sharpe_ratio_1y': None, 'sharpe_ratio_3y': None, 'sharpe_ratio_5y': None, 'sharpe_ratio_10y': None,
+            'beta_1y': None, 'beta_3y': None, 'beta_5y': None, 'beta_10y': None,
+            'alpha_1y': None, 'alpha_3y': None, 'alpha_5y': None, 'alpha_10y': None,
+            'standard_dev_1y': None, 'standard_dev_3y': None, 'standard_dev_5y': None, 'standard_dev_10y': None,
+            'r_squared_1y': None, 'r_squared_3y': None, 'r_squared_5y': None, 'r_squared_10y': None
         }
         
         html = await self.fetch_page(session, url)
@@ -138,6 +134,7 @@ class FTRiskScraper:
                 if '1y' in panel_id: suffix = '1y'
                 elif '3y' in panel_id: suffix = '3y'
                 elif '5y' in panel_id: suffix = '5y'
+                elif '10y' in panel_id: suffix = '10y' # เพิ่ม 10y ให้ครบตาม DB
                 
                 if suffix:
                     rows = panel.find_all('tr')
@@ -156,7 +153,7 @@ class FTRiskScraper:
         return data
 
     # =========================================================================
-    
+    # 2. RATINGS PAGE
     # =========================================================================
     async def get_ratings_data(self, session, ticker, asset_type):
         base_url = self._get_base_url(asset_type)
@@ -180,19 +177,14 @@ class FTRiskScraper:
             # --- Morningstar ---
             ms_container = soup.find(class_=re.compile(r'morningstar-rating'))
             if ms_container:
-                
                 highlighted = ms_container.find('span', attrs={'data-mod-stars-highlighted': 'true'})
                 if highlighted:
                     stars = len(highlighted.find_all(class_=re.compile(r'icon--star')))
                 else:
-                    
                     stars = len(ms_container.find_all(class_=re.compile(r'icon--star')))
                 
-                
-                if stars >= 1 and stars <= 5:
+                if 1 <= stars <= 5:
                     data['morningstar_rating'] = stars
-                else:
-                    data['morningstar_rating'] = None 
             
             # --- Lipper Leaders ---
             lipper_app = soup.find('div', attrs={'data-module-name': 'LipperRatingApp'})
@@ -219,7 +211,6 @@ class FTRiskScraper:
                                 for cls in icon.get('class', []):
                                     if 'mod-sprite-lipper-' in cls: 
                                         val = cls.split('-')[-1]
-                                        # Validate Score 1-5
                                         if val.isdigit() and 1 <= int(val) <= 5:
                                             return int(val)
                             return None
@@ -280,11 +271,11 @@ class FTRiskScraper:
         
         valid_cols = [
             'ticker', 'asset_type', 'source', 'name', 'updated_at',
-            'sharpe_ratio_1y', 'sharpe_ratio_3y', 'sharpe_ratio_5y',
-            'beta_1y', 'beta_3y', 'beta_5y',
-            'alpha_1y', 'alpha_3y', 'alpha_5y',
-            'standard_dev_1y', 'standard_dev_3y', 'standard_dev_5y',
-            'r_squared_1y', 'r_squared_3y', 'r_squared_5y',
+            'sharpe_ratio_1y', 'sharpe_ratio_3y', 'sharpe_ratio_5y', 'sharpe_ratio_10y',
+            'beta_1y', 'beta_3y', 'beta_5y', 'beta_10y',
+            'alpha_1y', 'alpha_3y', 'alpha_5y', 'alpha_10y',
+            'standard_dev_1y', 'standard_dev_3y', 'standard_dev_5y', 'standard_dev_10y',
+            'r_squared_1y', 'r_squared_3y', 'r_squared_5y', 'r_squared_10y',
             'morningstar_rating',
             'lipper_total_return_3y', 'lipper_total_return_5y', 'lipper_total_return_10y', 'lipper_total_return_overall',
             'lipper_consistent_return_3y', 'lipper_consistent_return_5y', 'lipper_consistent_return_10y', 'lipper_consistent_return_overall',
@@ -292,17 +283,13 @@ class FTRiskScraper:
             'lipper_expense_3y', 'lipper_expense_5y', 'lipper_expense_10y', 'lipper_expense_overall'
         ]
         
-        # Fill missing cols
         for col in valid_cols:
             if col not in df.columns: df[col] = None
             
-        # Select valid columns only
         df = df[valid_cols]
         
-        # 🧹 FINAL CLEANING: Clean Rating Column (Int or None)
         if 'morningstar_rating' in df.columns:
             df['morningstar_rating'] = pd.to_numeric(df['morningstar_rating'], errors='coerce')
-            
             df['morningstar_rating'] = df['morningstar_rating'].astype('Int64') 
 
         use_header = not self.output_file.exists()
@@ -310,7 +297,7 @@ class FTRiskScraper:
 
     async def run(self):
         if not self.tickers: return
-        logger.info(f"🚀 Starting FT Risk Scraper (Final Cleaned)")
+        logger.info(f"🚀 Starting FT Risk Scraper (Final + 10Y Support)")
         
         total = len(self.tickers)
         batches = math.ceil(total / BATCH_SIZE)
