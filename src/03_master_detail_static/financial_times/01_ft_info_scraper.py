@@ -56,13 +56,30 @@ class FTInfoScraper:
         return re.sub(r'\s+', ' ', text).strip()
 
     def _parse_date(self, text):
+        """
+        แปลงวันที่จากรูปแบบต่างๆ เช่น:
+        - "As of Jan 07 2026"
+        - "Data delayed at least 15 minutes, as of Jan 07 2026."
+        ให้เป็น "2026-01-07"
+        """
         if not text: return None
         try:
-            clean = re.sub(r'As of\s+', '', text).strip()
-            clean = clean.split('.')[0].strip() 
+            # ทำให้เป็นตัวเล็กเพื่อหาง่าย แล้วตัดเอาเฉพาะหลังคำว่า "as of"
+            lower_text = text.lower()
+            if "as of" in lower_text:
+                clean = lower_text.split("as of")[-1].strip()
+                clean = clean.replace('.', '') # ลบจุดท้ายประโยค
+                
+                # แปลงกลับเป็น Title case (jan -> Jan) เพื่อให้ strptime อ่านออก
+                dt = datetime.strptime(clean.title(), "%b %d %Y")
+                return dt.strftime("%Y-%m-%d")
+            
+            # กรณีไม่มี as of ลองแปลงตรงๆ (เผื่อไว้)
+            clean = re.sub(r'As of\s+', '', text).strip().split('.')[0]
             dt = datetime.strptime(clean, "%b %d %Y")
             return dt.strftime("%Y-%m-%d")
-        except: return text
+        except: 
+            return text # ถ้าแปลงไม่ได้ให้คืนค่าเดิม
 
     def _extract_table_value(self, soup, label_pattern):
         target = soup.find(['th', 'span', 'div', 'td'], string=re.compile(label_pattern, re.IGNORECASE))
@@ -143,21 +160,33 @@ class FTInfoScraper:
         
         try:
             soup = BeautifulSoup(html, 'html.parser')
+            # ค้นหา Header Geographical breakdown หรือ Asset allocation
             header = soup.find(string=re.compile(r'Geographical breakdown|Asset allocation', re.IGNORECASE))
             
             if header:
-                
                 parent = header.find_parent('div')
                 if parent:
                     table = parent.find_next('table')
                     if table:
                         rows = table.find('tbody').find_all('tr')
-                        if len(rows) > 0:
-                            cols = rows[0].find_all('td')
-                            if len(cols) >= 1:
-                                txt = self._clean_text(cols[0].text)
-                                if txt and "Cash" not in txt and "Other" not in txt:
-                                    return txt
+                        data_parts = []
+                        
+                        # วนลูปเก็บข้อมูลทุกแถว
+                        for row in rows:
+                            cols = row.find_all('td')
+                            # ต้องมีอย่างน้อย 2 คอลัมน์: ชื่อ Region และ %
+                            if len(cols) >= 2:
+                                region_name = self._clean_text(cols[0].text)
+                                percentage = self._clean_text(cols[1].text)
+                                
+                                if region_name and percentage:
+                                    # เก็บรูปแบบ "ชื่อ: %"
+                                    data_parts.append(f"{region_name}: {percentage}")
+                        
+                        # ถ้ามีข้อมูล ให้รวมกันด้วย " | " ส่งกลับเป็น String เดียว
+                        if data_parts:
+                            return " | ".join(data_parts)
+                            
         except Exception: 
             pass 
             

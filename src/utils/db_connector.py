@@ -10,7 +10,7 @@ from typing import Optional, List, Dict
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # ----------------------------------------------------------------------
-
+# SETUP PATHS & ENV
 # ----------------------------------------------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -22,7 +22,7 @@ else:
     print(f"⚠️  เตือน: ไม่เจอไฟล์ .env ที่ {ENV_PATH}")
 
 # ----------------------------------------------------------------------
-
+# DB CONNECTION UTILS
 # ----------------------------------------------------------------------
 
 def get_db_url() -> str:
@@ -52,7 +52,6 @@ def get_db_engine():
         raise
 
 def get_db_connection():
-    
     return get_db_engine()
 
 def test_connection():
@@ -67,7 +66,7 @@ def test_connection():
         return False
 
 # ----------------------------------------------------------------------
-
+# TABLE INITIALIZATION
 # ----------------------------------------------------------------------
 
 def init_master_table(engine):
@@ -215,7 +214,7 @@ def init_fund_info_table(engine):
                 index_benchmark VARCHAR(255),
                 inception_date DATE,
                 exchange VARCHAR(100),
-                region VARCHAR(100),
+                region TEXT,
                 country VARCHAR(100),
                 leverage VARCHAR(20),
                 options VARCHAR(20),
@@ -347,7 +346,7 @@ def init_fund_holdings_table(engine):
         raise
 
 # ----------------------------------------------------------------------
-
+# HELPER FUNCTIONS
 # ----------------------------------------------------------------------
 
 def get_active_tickers(source_name: str, asset_type: Optional[str] = None) -> List[Dict]:

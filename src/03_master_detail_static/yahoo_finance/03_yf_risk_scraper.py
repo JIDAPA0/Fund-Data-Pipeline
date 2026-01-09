@@ -2,10 +2,13 @@ import sys
 import asyncio
 import pandas as pd
 import random
+import re
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-# --- Setup Path ---
+# ==========================================
+# SYSTEM PATH SETUP
+# ==========================================
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parents[2]
 if str(project_root) not in sys.path: 
@@ -14,113 +17,152 @@ if str(project_root) not in sys.path:
 from src.utils.logger import setup_logger
 from src.utils.db_connector import get_active_tickers
 
+# ==========================================
+# CONFIGURATION
+# ==========================================
+logger = setup_logger("03_yf_risk_scraper")
 
-logger = setup_logger("03_master_detail_static_risk")
-
-# ✅ FIX PATH
 OUTPUT_DIR = project_root / "validation_output" / "Yahoo_Finance" / "03_Detail_Static"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_FILE = OUTPUT_DIR / "yf_fund_risk.csv"
 
+# Mapping: ชื่อบนหน้าเว็บ -> ชื่อ prefix ใน database
+metrics_map = {
+    "alpha": "Alpha",
+    "beta": "Beta",
+    "mean_annual_return": "Mean Annual Return",
+    "r_squared": "R-Squared",
+    "standard_deviation": "Standard Deviation",
+    "sharpe_ratio": "Sharpe Ratio",
+    "treynor_ratio": "Treynor Ratio"
+}
 
-metrics = ["alpha", "beta", "mean_annual_return", "r_squared", "standard_deviation", "sharpe_ratio", "treynor_ratio"]
+# สร้าง Columns Header: ticker, rating, alpha_3y, alpha_5y, ...
 COLS = ["ticker", "morningstar_rating"]
-for m in metrics:
+for m in metrics_map.keys():
     for y in ["3y", "5y", "10y"]:
         COLS.append(f"{m}_{y}")
+COLS.append("updated_at")
 
 class YFRiskScraper:
     def __init__(self):
         self.tickers_data = get_active_tickers("Yahoo Finance")
-        if not OUTPUT_FILE.exists():
-            pd.DataFrame(columns=COLS).to_csv(OUTPUT_FILE, index=False)
+        
+        # Resume Logic
+        self.processed_tickers = set()
+        if OUTPUT_FILE.exists():
+            try:
+                df = pd.read_csv(OUTPUT_FILE)
+                if 'ticker' in df.columns:
+                    self.processed_tickers = set(df['ticker'].astype(str))
+                logger.info(f"⏭️ Found existing file. Skipping {len(self.processed_tickers)} rows.")
+            except: pass
 
     async def scrape_risk(self, page, ticker):
-        print(f"⏳ เจาะข้อมูล Risk (Rating to Number): {ticker} ...{' '*10}", end='\r', flush=True)
+        # ตัด Suffix เพื่อเข้า URL ให้ถูก (เช่น VOO:PCQ -> VOO)
+        yf_ticker = ticker.split(':')[0]
+        url = f"https://finance.yahoo.com/quote/{yf_ticker}/risk"
+        
         data = {c: None for c in COLS}
         data["ticker"] = ticker
+        data["updated_at"] = pd.Timestamp.now().strftime("%Y-%m-%d")
 
         try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
             
-            await page.goto(f"https://finance.yahoo.com/quote/{ticker}/risk", wait_until="domcontentloaded", timeout=60000)
-            
-            
-            target_selector = 'section[data-testid="risk-statistics-table"]'
+            # Scroll เพื่อโหลดตาราง (Lazy Load)
+            await page.evaluate("window.scrollBy(0, 500)")
+            await asyncio.sleep(2) # รอ Animation
+
+            # --- 1. MORNINGSTAR RATING (STARS) ---
             try:
-                await page.wait_for_selector(target_selector, timeout=20000)
-            except:
-                
-                return None
+                # หา span ที่มีดาว ★
+                stars_elements = await page.locator('span:has-text("★")').all_inner_texts()
+                if stars_elements:
+                    # เลือกอันที่มีดาวเยอะสุด (เช่น ★★★)
+                    rating_str = max(stars_elements, key=lambda x: x.count("★"))
+                    data["morningstar_rating"] = rating_str.count("★")
+            except: pass
 
-            await asyncio.sleep(2) 
-
-            
-            rows = page.locator(f'{target_selector} tbody tr')
-            count = await rows.count()
-            
-            for i in range(count):
-                cells = rows.nth(i).locator('td')
-                cell_count = await cells.count()
-                if cell_count < 2: continue
-                
-                label = (await cells.nth(0).inner_text()).lower().strip()
-                
-                for m in metrics:
-                    match_label = m.replace('_', ' ')
-                    if match_label in label or (m == "beta" and label == "beta"):
-                        
-                        data[f"{m}_3y"] = await cells.nth(1).inner_text() if cell_count > 1 else None
-                        data[f"{m}_5y"] = await cells.nth(3).inner_text() if cell_count > 3 else None
-                        data[f"{m}_10y"] = await cells.nth(5).inner_text() if cell_count > 5 else None
-
-            
+            # --- 2. RISK METRICS (TABLE STRATEGY) ---
+            # ใช้ Locator หาตารางที่มีคำว่า "Alpha" (แม่นยำกว่า data-testid)
             try:
+                # หา Table ที่มีคำว่า Alpha อยู่ข้างใน
+                table_loc = page.locator("table").filter(has_text="Alpha").first
                 
-                rating_row = page.locator('section[data-testid="risk-overview"] tr:has-text("Morningstar Risk Rating")')
-                if await rating_row.count() > 0:
-                    raw_rating = await rating_row.locator('td').last.inner_text()
+                # วนลูปทุกแถว (tr)
+                rows = await table_loc.locator("tr").all()
+                
+                for row in rows:
+                    # ดึง Text ทั้งหมดในแถว (Label + Values)
+                    cells = await row.locator("td").all_inner_texts()
+                    if not cells: continue # ข้ามแถว header หรือว่าง
                     
+                    row_label = cells[0].strip() # ตัวแรกคือ Label (e.g., "Alpha")
                     
-                    if '★' in raw_rating:
-                        data["morningstar_rating"] = raw_rating.count('★')
-                    elif raw_rating.isdigit():
-                        data["morningstar_rating"] = int(raw_rating)
-                    else:
-                        data["morningstar_rating"] = None
-            except:
+                    # เช็คว่า Label ตรงกับ Metric ไหนใน map ของเราไหม
+                    for metric_key, web_label in metrics_map.items():
+                        # เปรียบเทียบแบบ Case Insensitive
+                        if web_label.lower() in row_label.lower():
+                            # Yahoo Table Columns Format: [Label, 3Y, 5Y, 10Y]
+                            # บางทีมี Benchmark แทรก หรือบางคอลัมน์หายไป
+                            
+                            # ปกติ: Label | 3Y | 5Y | 10Y
+                            if len(cells) >= 2: data[f"{metric_key}_3y"] = cells[1].strip()
+                            if len(cells) >= 3: data[f"{metric_key}_5y"] = cells[2].strip()
+                            if len(cells) >= 4: data[f"{metric_key}_10y"] = cells[3].strip()
+                            
+                            break # เจอแล้วหยุดวน map สำหรับแถวนี้
+                            
+            except Exception as e:
+                # ถ้าหาตารางไม่เจอ (เช่น ETF บางตัวไม่มีตาราง Risk) ก็ปล่อยผ่าน
                 pass
 
-            logger.info(f"✅ {ticker}: Extracted (Rating: {data['morningstar_rating']})")
+            # Log ตรวจสอบความถูกต้อง
+            log_beta = data.get('beta_3y', '-')
+            log_rating = data.get('morningstar_rating', '-')
+            logger.info(f"✅ {ticker}: Rating={log_rating}, Beta(3Y)={log_beta}")
             return data
+
         except Exception as e:
+            logger.error(f"❌ {ticker} Error: {e}")
             return None
 
     async def run(self):
+        queue = [t for t in self.tickers_data if t['ticker'] not in self.processed_tickers]
+        logger.info(f"🚀 Risk Scraper Started. Remaining: {len(queue)}")
+        
+        if not queue: 
+            logger.info("🎉 All done! No new tickers.")
+            return
+
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
-            
-            context = await browser.new_context(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
             page = await context.new_page()
             
-            
-            processed = set(pd.read_csv(OUTPUT_FILE)['ticker'].astype(str)) if OUTPUT_FILE.exists() else set()
-            queue = [t for t in self.tickers_data if t['ticker'] not in processed]
-
-            print(f"🚀 เริ่มประมวลผล Risk Data... เหลืออีก {len(queue)} รายการ")
-
             for i, item in enumerate(queue, 1):
                 res = await self.scrape_risk(page, item['ticker'])
                 if res:
-                    pd.DataFrame([res])[COLS].to_csv(OUTPUT_FILE, mode='a', header=False, index=False)
+                    df = pd.DataFrame([res])[COLS]
+                    use_header = not OUTPUT_FILE.exists()
+                    df.to_csv(OUTPUT_FILE, mode='a', header=use_header, index=False)
                 
+                # Random Delay (ลดความเสี่ยงโดนบล็อก)
+                await asyncio.sleep(random.uniform(2, 4))
                 
-                if i % 10 == 0:
-                    await asyncio.sleep(random.uniform(3, 6))
-                else:
-                    await asyncio.sleep(random.uniform(1, 2))
-            
+                # Restart Context ทุกๆ 20 ตัว
+                if i % 20 == 0:
+                    await context.close()
+                    context = await browser.new_context(
+                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                    )
+                    page = await context.new_page()
+
             await browser.close()
-        print("\n🎉 จบการทำงาน! ข้อมูลพร้อมใช้งานใน CSV แล้วครับ")
+        logger.info("🎉 Risk Scraper Finished!")
 
 if __name__ == "__main__":
     if sys.platform == 'win32':

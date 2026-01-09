@@ -25,7 +25,7 @@ from src.utils.db_connector import get_active_tickers
 # ==========================================
 # CONFIGURATION
 # ==========================================
-logger = setup_logger("02_ft_fees_fixed_cols")
+logger = setup_logger("02_ft_fees_scraper")
 CONCURRENCY = 50
 BATCH_SIZE = 100
 
@@ -60,24 +60,41 @@ class FTFeesScraper:
 
     def _clean_text(self, text):
         if not text: return None
-        cleaned = re.sub(r'\s+', ' ', text).strip()
+        # ลบ Non-breaking space และจัดระเบียบ
+        cleaned = re.sub(r'\s+', ' ', text).replace('\xa0', ' ').strip()
+        # ตัดวันที่ออก (เช่น "As of Dec 31 2024")
         for stopper in ["As of", "As at", "Data as of"]:
             if stopper in cleaned:
                 cleaned = cleaned.split(stopper)[0].strip()
         return cleaned
 
     def _extract_table_value(self, soup, label_pattern):
-        target = soup.find(['th', 'span', 'div', 'td'], string=re.compile(label_pattern, re.IGNORECASE))
-        if target:
+        """
+        พยายามดึงค่าจากตารางโดยหา Label ก่อน แล้วดู sibling หรือ parent
+        """
+        # หา Element ที่มี text ตรงกับ regex
+        targets = soup.find_all(['th', 'span', 'div', 'td'], string=re.compile(label_pattern, re.IGNORECASE))
+        
+        for target in targets:
+            # กรณี 1: <th>Label</th> <td>Value</td> (โครงสร้างมาตรฐาน)
             if target.name in ['th', 'td']:
                 sibling = target.find_next_sibling('td')
-                if sibling: return self._clean_text(sibling.text)
+                if sibling: 
+                    return self._clean_text(sibling.text)
+            
+            # กรณี 2: <div><span>Label</span><span>Value</span></div>
             parent = target.find_parent(['tr', 'div', 'li'])
             if parent:
-                value = parent.find(class_=re.compile(r'value|data'))
-                if value: return self._clean_text(value.text)
+                # ลองหา class ที่มักจะเป็น value
+                value = parent.find(class_=re.compile(r'value|data|content', re.IGNORECASE))
+                if value: 
+                    return self._clean_text(value.text)
+                
+                # ลองหา td ตัวที่ 2 ของ row
                 val_td = parent.find_all('td')
-                if len(val_td) > 1: return self._clean_text(val_td[1].text)
+                if len(val_td) > 1: 
+                    return self._clean_text(val_td[1].text)
+                    
         return None
 
     # =========================================================================
@@ -93,7 +110,7 @@ class FTFeesScraper:
             'assets_aum': None
         }
         try:
-            async with session.get(url, timeout=10) as response:
+            async with session.get(url, timeout=15) as response:
                 if response.status != 200: return data
                 html = await response.text()
                 soup = BeautifulSoup(html, 'html.parser')
@@ -102,33 +119,39 @@ class FTFeesScraper:
                 header = soup.select_one('h1.mod-tearsheet-overview__header__name')
                 if header: data['name'] = self._clean_text(header.text)
 
-                # --- Get Fees & AUM ---
-                data['expense_ratio'] = self._extract_table_value(soup, r'Ongoing charge|Net Expense Ratio|Expense Ratio')
+                # --- Get Fees ---
+                data['expense_ratio'] = self._extract_table_value(soup, r'Ongoing charge|Net Expense Ratio|Expense Ratio|Management fee|Max annual charge')
                 data['initial_charge'] = self._extract_table_value(soup, r'Initial charge|Entry charge')
                 data['exit_charge'] = self._extract_table_value(soup, r'Exit charge|Redemption charge')
                 
-                aum = self._extract_table_value(soup, r'Fund size')
+                # --- Get AUM ---
+                aum = self._extract_table_value(soup, r'Net assets|Total Net Assets')
+                if not aum: aum = self._extract_table_value(soup, r'Fund size')
                 if not aum: aum = self._extract_table_value(soup, r'Share class size')
-                if not aum: aum = self._extract_table_value(soup, r'Total Net Assets|Net Assets')
                 data['assets_aum'] = aum
-        except: pass
+                
+        except Exception: pass
         return data
 
     # =========================================================================
-    # 2. HOLDINGS PAGE
+    # 2. HOLDINGS PAGE (Top 10 %, Count Only)
     # =========================================================================
     async def get_holdings_data(self, session, ticker):
         url = f"https://markets.ft.com/data/funds/tearsheet/holdings?s={ticker}"
-        data = {'top_10_hold_pct': None, 'holdings_count': None}
+        data = {
+            'top_10_hold_pct': None, 
+            'holdings_count': None
+            # ตัด holdings_turnover ออกแล้ว
+        }
         try:
-            async with session.get(url, timeout=10) as response:
+            async with session.get(url, timeout=15) as response:
                 if response.status != 200: return data
                 html = await response.text()
                 soup = BeautifulSoup(html, 'html.parser')
                 
                 module = soup.find('div', attrs={'data-module-name': 'TopHoldingsApp'})
                 if module:
-                    # Count Rows
+                    # Count Rows in Top Holdings Table
                     tables = module.find_all('table')
                     target_table = None
                     for tbl in tables:
@@ -136,39 +159,31 @@ class FTFeesScraper:
                         if any(x in headers for x in ['company', 'security', 'portfolio weight', 'weight']):
                             target_table = tbl
                             break
+                    
                     if target_table:
                         rows = target_table.find_all('tr')
-                        data['holdings_count'] = max(0, len(rows) - 1)
+                        # ลบ 1 คือ header
+                        cnt = max(0, len(rows) - 1)
+                        data['holdings_count'] = cnt
 
-                    # Get Percent from JSON
-                    config_str = module.get('data-mod-config')
-                    if config_str:
-                        try:
-                            config = json.loads(config_str)
-                            if isinstance(config, list) and len(config) > 0:
-                                items = config[0]
-                                for item in items:
-                                    label = item.get('Label', '')
-                                    pct = item.get('Percent')
-                                    if pct and float(pct) > 0:
-                                        if "Net Assets" in label or "Top" in label:
-                                            data['top_10_hold_pct'] = f"{float(pct):.2f}%"
-                                            break
-                                if not data['top_10_hold_pct'] and items and items[0].get('Percent'):
-                                     data['top_10_hold_pct'] = f"{float(items[0].get('Percent')):.2f}%"
-                        except: pass
+                    # [UPDATED LOGIC] Find "top 10 holdings" text and check parent text for percentage
+                    all_text_elements = module.find_all(string=re.compile(r'top 10 holdings', re.IGNORECASE))
+                    
+                    for text_node in all_text_elements:
+                        match = None
+                        # Check in node itself
+                        match = re.search(r'(\d{1,3}\.\d{2})%', text_node)
+                        
+                        # Check in parent text (fixes issue where text and number are in different tags)
+                        if not match and text_node.parent:
+                            parent_text = text_node.parent.get_text(strip=True)
+                            match = re.search(r'(\d{1,3}\.\d{2})%', parent_text)
+                            
+                        if match:
+                            data['top_10_hold_pct'] = match.group(1) + "%"
+                            break
 
-                    # Get Percent from Footer (Backup)
-                    if not data['top_10_hold_pct']:
-                        footer_td = module.find('td', string=re.compile(r'Per cent', re.IGNORECASE))
-                        if not footer_td:
-                            for td in module.find_all('td'):
-                                if "Per cent" in td.get_text():
-                                    footer_td = td; break
-                        if footer_td:
-                            match = re.search(r'(\d{1,3}\.\d{2}%)', footer_td.get_text())
-                            if match: data['top_10_hold_pct'] = match.group(1)
-        except: pass
+        except Exception: pass
         return data
 
     async def process_ticker(self, session, item, semaphore):
@@ -181,7 +196,6 @@ class FTFeesScraper:
                 self.get_holdings_data(session, ticker)
             )
             
-            
             result = {
                 "ticker": ticker,
                 "asset_type": asset_type,
@@ -190,8 +204,6 @@ class FTFeesScraper:
                 **summary_res,  
                 **holdings_res  
             }
-            
-            
             return result
 
     async def scrape_batch(self, batch_tickers):
@@ -207,11 +219,11 @@ class FTFeesScraper:
         if not results: return
         df = pd.DataFrame(results)
         
-        
         desired_order = [
             'ticker', 'asset_type', 'source', 'name',
             'expense_ratio', 'initial_charge', 'exit_charge', 
             'assets_aum', 'top_10_hold_pct', 'holdings_count'
+            # holdings_turnover เอาออกจาก csv ด้วย
         ]
         
         for col in desired_order:
@@ -228,7 +240,7 @@ class FTFeesScraper:
             logger.info("🎉 No new tickers to scrape.")
             return
 
-        logger.info(f"🚀 Starting FT Fees Scraper (Fixed Cols + Force Save)")
+        logger.info(f"🚀 Starting FT Fees Scraper (Fixed Accuracy, No Turnover)")
         logger.info(f"💾 Saving to {self.output_file}")
         
         total = len(self.tickers)

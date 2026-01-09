@@ -26,8 +26,8 @@ from src.utils.db_connector import get_active_tickers
 # ==========================================
 # CONFIGURATION
 # ==========================================
-logger = setup_logger("04_ft_policy_api_master")
-CONCURRENCY = 5    # 🐢 Safe Speed
+logger = setup_logger("04_ft_policy_scraper")
+CONCURRENCY = 10
 BATCH_SIZE = 50    
 
 class FTPolicyScraper:
@@ -62,11 +62,11 @@ class FTPolicyScraper:
     def _extract_val(self, text):
         """Clean value: remove HTML tags, commas, spaces"""
         if not text: return None
-        
-        clean = re.sub(r'<[^>]+>', '', str(text))
-        clean = clean.strip()
-        if clean == '--' or clean == '-': return None
-        return clean.replace(',', '') 
+        clean = re.sub(r'<[^>]+>', '', str(text)).strip()
+        if clean in ['--', '-', '', 'NA']: return None
+        try:
+            return clean.replace(',', '').replace('%', '') 
+        except: return None
 
     def _parse_date(self, text):
         if not text: return None
@@ -84,14 +84,16 @@ class FTPolicyScraper:
         is_etf = 'ETF' in str(asset_type).upper()
         base_type = 'etfs' if is_etf else 'funds'
         
+        # 1. Summary Page (Name, Dividend Yield)
+        url_summary = f"https://markets.ft.com/data/{base_type}/tearsheet/summary?s={ticker}"
         
-        main_url = f"https://markets.ft.com/data/{base_type}/tearsheet/performance?s={ticker}"
+        # 2. Performance HTML Page (Trailing 1y, 3y, 5y) -> ใช้ HTML Parser แทน API ที่พัง
+        url_perf_html = f"https://markets.ft.com/data/{base_type}/tearsheet/performance?s={ticker}"
+
+        # 3. API: Annual (YTD) -> ใช้ API เพราะดึง YTD ง่ายกว่าแกะกราฟ
+        url_annual_api = f"https://markets.ft.com/data/funds/ajax/trailing-total-returns?chartType=annual&symbol={ticker}"
         
-        
-        
-        api_url = f"https://markets.ft.com/data/funds/ajax/trailing-total-returns?chartType=annual&symbol={ticker}"
-        
-        return main_url, api_url
+        return url_summary, url_perf_html, url_annual_api
 
     async def fetch_page(self, session, url):
         headers = get_random_headers()
@@ -108,72 +110,81 @@ class FTPolicyScraper:
                 await asyncio.sleep(1)
         return None
 
-    def _extract_1y_from_html(self, html):
-        if not html: return None
-        soup = BeautifulSoup(html, 'html.parser')
-        tables = soup.find_all('table')
-        
-        for table in tables:
-            headers = [th.text.strip().lower() for th in table.find_all('th')]
-            
-            target_idx = -1
-            for i, h in enumerate(headers):
-                if '1 year' in h and '3 year' not in h:
-                    target_idx = i
-                    break
-            
-            if target_idx != -1:
-                
-                rows = table.find_all('tr')
-                for r in rows:
-                    if r.find('th'): continue
-                    cols = r.find_all('td')
-                    if len(cols) > target_idx:
-                        
-                        first_text = cols[0].text.strip().lower()
-                        if "quartile" not in first_text and "category" not in first_text:
-                            return self._extract_val(cols[target_idx].text)
-        return None
-
-    def _extract_ytd_from_json(self, json_text):
+    def _extract_from_json(self, json_text, keywords_list):
+        """Extract value from JSON API (ใช้สำหรับ YTD)"""
         if not json_text: return None
         try:
             data_raw = json.loads(json_text)
             if 'data' in data_raw and 'chartData' in data_raw['data']:
-                
                 chart_data = json.loads(data_raw['data']['chartData'])
-                
-                headers = chart_data.get('headers', [])
+                headers = [h.lower() for h in chart_data.get('headers', [])] 
                 values = chart_data.get('data', [])
                 
-                
-                ytd_idx = -1
                 for i, h in enumerate(headers):
-                    if h == 'YTD':
-                        ytd_idx = i
+                    if any(kw in h for kw in keywords_list):
+                        if i < len(values):
+                            raw_val = values[i].get('fundPerformance')
+                            return self._extract_val(raw_val)
+        except: pass
+        return None
+
+    def _extract_trailing_from_html(self, html):
+        """แกะตาราง HTML เพื่อเอา 1y, 3y, 5y (แม่นยำกว่า API ที่ Error 400)"""
+        results = {'1y': None, '3y': None, '5y': None}
+        if not html: return results
+
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            tables = soup.find_all('table')
+            target_table = None
+            
+            # หาตารางที่มี Header '1 year'
+            for tbl in tables:
+                if tbl.find('th') and '1 year' in tbl.text.lower():
+                    target_table = tbl
+                    break
+            
+            if target_table:
+                headers = [th.get_text(strip=True).lower() for th in target_table.find_all('th')]
+                
+                # หา Row ที่เป็นข้อมูลกองทุน (ไม่ใช่ Category Average)
+                rows = target_table.find_all('tr')
+                data_row = None
+                for row in rows:
+                    if row.find('td') and 'category' not in row.text.lower():
+                        data_row = row
                         break
                 
-                if ytd_idx != -1 and ytd_idx < len(values):
+                if data_row:
+                    cols = data_row.find_all('td')
                     
-                    raw_val = values[ytd_idx].get('fundPerformance')
-                    return self._extract_val(raw_val) # Clean HTML tags if any
-        except:
-            pass
-        return None
+                    def get_col_val(keywords):
+                        for i, h in enumerate(headers):
+                            if any(kw in h for kw in keywords):
+                                if i < len(cols):
+                                    return self._extract_val(cols[i].text)
+                        return None
+
+                    results['1y'] = get_col_val(['1 year', '1 yr'])
+                    results['3y'] = get_col_val(['3 year', '3 yr'])
+                    results['5y'] = get_col_val(['5 year', '5 yr'])
+
+        except: pass
+        return results
 
     async def process_ticker(self, session, item, semaphore):
         ticker = item['ticker']
         asset_type = item['asset_type']
         
-        main_url, api_url = self._get_urls(ticker, asset_type)
+        url_summary, url_perf, url_annual = self._get_urls(ticker, asset_type)
         
         async with semaphore:
-            # Task 1: Main Page (1Y, Name, Date)
-            task_main = self.fetch_page(session, main_url)
-            # Task 2: API (YTD)
-            task_api = self.fetch_page(session, api_url)
+            # ยิง 3 Requests (Summary, HTML Perf, API Annual)
+            task_sum = self.fetch_page(session, url_summary)
+            task_perf = self.fetch_page(session, url_perf)
+            task_annual = self.fetch_page(session, url_annual)
             
-            res_main, res_api = await asyncio.gather(task_main, task_api)
+            res_sum, res_perf, res_annual = await asyncio.gather(task_sum, task_perf, task_annual)
             
             data = {
                 "ticker": ticker,
@@ -181,24 +192,42 @@ class FTPolicyScraper:
                 "source": "Financial Times",
                 "name": None,
                 "updated_at": None,
+                "dividend_yield": None,
+                "total_return_ytd": None,
                 "total_return_1y": None,
-                "total_return_ytd": None
+                "total_return_3y": None,
+                "total_return_5y": None
             }
 
-            # Process HTML
-            if res_main:
-                soup = BeautifulSoup(res_main, 'html.parser')
+            # 1. HTML Summary (Name, Yield)
+            if res_sum:
+                soup = BeautifulSoup(res_sum, 'html.parser')
                 header = soup.select_one('h1.mod-tearsheet-overview__header__name')
                 if header: data['name'] = self._clean_text(header.text)
                 
                 footer = soup.find(string=re.compile(r'As of\s+[A-Za-z]{3}'))
                 if footer: data['updated_at'] = self._parse_date(footer)
                 
-                data['total_return_1y'] = self._extract_1y_from_html(res_main)
+                div_yield = soup.find(string=re.compile(r'Yield', re.IGNORECASE))
+                if div_yield:
+                    parent = div_yield.find_parent(['tr', 'li'])
+                    if parent:
+                        val_node = parent.find(class_=re.compile(r'value|data'))
+                        if val_node: data['dividend_yield'] = self._extract_val(val_node.text)
+                    if not data['dividend_yield']:
+                         val_node = div_yield.find_next(class_='mod-ui-data-list__value')
+                         if val_node: data['dividend_yield'] = self._extract_val(val_node.text)
 
-            # Process JSON API
-            if res_api:
-                data['total_return_ytd'] = self._extract_ytd_from_json(res_api)
+            # 2. HTML Performance (1y, 3y, 5y)
+            if res_perf:
+                trailing = self._extract_trailing_from_html(res_perf)
+                data['total_return_1y'] = trailing['1y']
+                data['total_return_3y'] = trailing['3y']
+                data['total_return_5y'] = trailing['5y']
+
+            # 3. API Annual (YTD)
+            if res_annual:
+                data['total_return_ytd'] = self._extract_from_json(res_annual, ['ytd'])
 
             return data
 
@@ -217,9 +246,13 @@ class FTPolicyScraper:
         
         valid_cols = [
             'ticker', 'asset_type', 'source', 'name', 
+            'dividend_yield',
             'total_return_ytd', 
             'total_return_1y',
-            'updated_at'
+            'updated_at',
+            # เก็บ 3y, 5y ลง CSV ด้วย (เผื่อ DB ยังไม่มีก็ไม่เป็นไร CSV จะมีครบ)
+            'total_return_3y', 
+            'total_return_5y'
         ]
         
         for col in valid_cols:
@@ -231,7 +264,7 @@ class FTPolicyScraper:
 
     async def run(self):
         if not self.tickers: return
-        logger.info(f"🚀 Starting FT Policy Scraper (API Master)")
+        logger.info(f"🚀 Starting FT Policy Scraper (Hybrid HTML+API)")
         
         total = len(self.tickers)
         batches = math.ceil(total / BATCH_SIZE)
