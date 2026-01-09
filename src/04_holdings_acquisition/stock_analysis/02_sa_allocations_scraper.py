@@ -8,7 +8,6 @@ import time
 from playwright.async_api import async_playwright, TimeoutError
 from typing import List, Dict, Any, Set
 from dotenv import load_dotenv
-import psycopg2 
 
 # --- 🛠️ SETUP PATH & IMPORTS ------------------------------------------------
 current_file = Path(__file__).resolve()
@@ -17,31 +16,26 @@ PROJECT_ROOT = current_file.parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-print(f"📍 Project Root detected at: {PROJECT_ROOT}")
+from src.utils.logger import setup_logger
+from src.utils.db_connector import get_active_tickers
+
+logger = setup_logger("02_sa_allocations_scraper")
 
 # --- ⚙️ LOAD CONFIG FROM .ENV ------------------------------------------------
 env_path = PROJECT_ROOT / ".env"
 if env_path.exists():
-    print(f"📂 Loading environment variables from: {env_path}")
+    logger.info("📂 Loading environment variables from: %s", env_path)
     load_dotenv(dotenv_path=env_path)
 else:
-    print(f"⚠️ Warning: .env file not found at {env_path}")
+    logger.warning("⚠️ Warning: .env file not found at %s", env_path)
 
 # Config Login
 SA_EMAIL = os.getenv("SA_EMAIL")
 SA_PASSWORD = os.getenv("SA_PASSWORD")
-LOGIN_URL = "https://stockanalysis.com/login"
+LOGIN_URL = os.getenv("SA_LOGIN_URL", "https://stockanalysis.com/login")
 
 if not SA_EMAIL or not SA_PASSWORD:
-    print("❌ FATAL ERROR: Missing SA_EMAIL or SA_PASSWORD in .env")
-    exit(1)
-
-
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_PORT = os.getenv("DB_PORT")
+    logger.warning("⚠️ Missing SA_EMAIL or SA_PASSWORD in .env")
 
 # --- ⚙️ SCRAPER SETTINGS -----------------------------------------------------
 BASE_OUTPUT_DIR = PROJECT_ROOT / "validation_output/Stock_Analysis/05_Allocations"
@@ -61,39 +55,14 @@ def get_processed_tickers(target_dir: Path) -> Set[str]:
             processed_tickers.add(ticker)
     return processed_tickers
 
-def fetch_tickers_direct_from_db():
-    print("🔌 Connecting to Database directly...")
-    conn = None
-    tickers = []
-    try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            port=DB_PORT
-        )
-        cur = conn.cursor()
-        
-        
-        sql = "SELECT ticker FROM stg_security_master WHERE source = 'Stock Analysis'"
-        
-        cur.execute(sql)
-        rows = cur.fetchall()
-        
-        
-        tickers = [row[0] for row in rows]
-        print(f"✅ Query Success: Found {len(tickers)} tickers.")
-        
-    except Exception as e:
-        print(f"❌ Database Error: {e}")
-    finally:
-        if conn:
-            conn.close()
+def fetch_tickers_from_db():
+    rows = get_active_tickers("Stock Analysis")
+    tickers = [r.get("ticker") for r in rows if r.get("ticker")]
+    logger.info("✅ Query Success: Found %s tickers.", len(tickers))
     return tickers
 
 async def login_to_sa(page):
-    print(f"🔐 Attempting Login to {LOGIN_URL} as {SA_EMAIL}...")
+    logger.info("🔐 Attempting Login to %s as %s...", LOGIN_URL, SA_EMAIL or "UNKNOWN")
     try:
         await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
         if "login" in page.url:
@@ -102,16 +71,16 @@ async def login_to_sa(page):
             await page.keyboard.press("Enter")
             await page.wait_for_url(lambda url: "login" not in url, timeout=30000)
             if "login" not in page.url:
-                print("✅ Login Successful!")
+                logger.info("✅ Login Successful!")
                 return True 
             else:
-                print("❌ Login Failed")
+                logger.error("❌ Login Failed")
                 return False 
         else:
-            print("✅ Session already authenticated.")
+            logger.info("✅ Session already authenticated.")
             return True
     except Exception as e:
-        print(f"❌ Critical Login Error: {e}")
+        logger.error("❌ Critical Login Error: %s", e)
         return False
 
 async def extract_sector_allocation(page, ticker, target_dir):
@@ -191,7 +160,7 @@ async def worker(ticker: str, context, TODAY_DIR: Path, all_tickers: List[str], 
 
 # --- MAIN LOGIC ---------------------------------------------------------------
 async def main():
-    print("\n--- 🚀 STARTING SECTOR ALLOCATION SCRAPER (DIRECT DB MODE) ---")
+    logger.info("--- 🚀 STARTING SECTOR ALLOCATION SCRAPER (DIRECT DB MODE) ---")
     start_time = time.time()
     
     today_str = datetime.now().strftime('%Y-%m-%d')
@@ -199,21 +168,21 @@ async def main():
     TODAY_DIR.mkdir(parents=True, exist_ok=True)
     
     
-    all_tickers = fetch_tickers_direct_from_db()
+    all_tickers = fetch_tickers_from_db()
     
     if not all_tickers:
-        print("❌ Still no tickers found even with direct query.")
-        print("💡 ตรวจสอบว่าใน DB คอลัมน์ source เขียนว่า 'Stock Analysis' จริงหรือไม่")
+        logger.error("❌ Still no tickers found from DB.")
+        logger.error("💡 ตรวจสอบว่าใน DB คอลัมน์ source เขียนว่า 'Stock Analysis' จริงหรือไม่")
         return
 
     processed_tickers = get_processed_tickers(TODAY_DIR)
     tickers_to_process = [t for t in all_tickers if t not in processed_tickers]
     
-    print(f"📋 Loaded {len(all_tickers)} tickers.")
-    print(f"⏳ {len(tickers_to_process)} tickers remaining.")
+    logger.info("📋 Loaded %s tickers.", len(all_tickers))
+    logger.info("⏳ %s tickers remaining.", len(tickers_to_process))
     
     if not tickers_to_process:
-        print("🎉 All tasks completed.")
+        logger.info("🎉 All tasks completed.")
         return
 
     counters = {
@@ -252,7 +221,7 @@ async def main():
     final_success_count = initial_processed_count + counters['success_count']
     final_skipped_count = counters['skipped_count']
     generate_report(BASE_OUTPUT_DIR, start_time, len(all_tickers), final_success_count, final_skipped_count)
-    print("\n--- 🏁 ALL OPERATIONS COMPLETED ---")
+    logger.info("--- 🏁 ALL OPERATIONS COMPLETED ---")
 
 if __name__ == "__main__":
     asyncio.run(main())

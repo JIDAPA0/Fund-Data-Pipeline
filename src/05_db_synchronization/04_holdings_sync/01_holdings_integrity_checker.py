@@ -9,14 +9,15 @@ sys.path.append(str(BASE_DIR))
 STAGING_DIR = BASE_DIR / "data" / "03_staging" / "holdings"
 
 FILES = {
-    "holdings_clean.csv": "holdings_validated.csv",
-    "allocations_clean.csv": "allocations_validated.csv",
-    "sectors_clean.csv": "sectors_validated.csv",
-    "regions_clean.csv": "regions_validated.csv",
+    "holdings_clean.csv": ("holdings_validated.csv", ["ticker", "item_name"]),
+    "allocations_clean.csv": ("allocations_validated.csv", ["ticker", "item_name"]),
+    "sectors_clean.csv": ("sectors_validated.csv", ["ticker", "item_name"]),
+    "regions_clean.csv": ("regions_validated.csv", ["ticker", "item_name"]),
+    "fund_metrics_clean.csv": ("fund_metrics_validated.csv", ["ticker", "metric_type", "metric_name"]),
 }
 
 
-def validate(src, dst):
+def validate(src, dst, required_cols):
     src_path = STAGING_DIR / src
     if not src_path.exists():
         print(f"⚠️ Missing {src_path}")
@@ -25,18 +26,16 @@ def validate(src, dst):
     if df.empty:
         print(f"⚠️ {src_path} empty")
         return
-    # Keep rows with ticker and item_name/value_net present
-    if "ticker" in df.columns:
-        df = df.dropna(subset=["ticker"])
-    if "item_name" in df.columns:
-        df = df.dropna(subset=["item_name"])
+    for col in required_cols:
+        if col in df.columns:
+            df = df.dropna(subset=[col])
     df.to_csv(STAGING_DIR / dst, index=False)
     print(f"✅ Validated {dst} ({len(df)} rows)")
 
 
 def main():
-    for src, dst in FILES.items():
-        validate(src, dst)
+    for src, (dst, required_cols) in FILES.items():
+        validate(src, dst, required_cols)
 
 
 if __name__ == "__main__":

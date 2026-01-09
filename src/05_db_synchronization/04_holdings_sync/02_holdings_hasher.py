@@ -17,6 +17,7 @@ FILES = {
     "allocations_validated.csv": "allocations_hashed.csv",
     "sectors_validated.csv": "sectors_hashed.csv",
     "regions_validated.csv": "regions_hashed.csv",
+    "fund_metrics_validated.csv": "fund_metrics_hashed.csv",
 }
 
 
