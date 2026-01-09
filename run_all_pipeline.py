@@ -97,13 +97,25 @@ def parse_only(value):
     return resolved or None
 
 
-def get_env():
+def _normalize_limit(value):
+    if value is None:
+        return None
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def get_env(ft_limit=None):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(BASE_DIR)
+    if ft_limit:
+        env["FT_MAX_TICKERS"] = str(ft_limit)
     return env
 
 
-def run_step(path, label):
+def run_step(path, label, ft_limit=None):
     full_path = BASE_DIR / path
     if not full_path.exists():
         logger.error("❌ Missing script: %s", full_path)
@@ -111,7 +123,7 @@ def run_step(path, label):
     logger.info("▶️  Running: %s", label)
     start = time.time()
     try:
-        subprocess.run([sys.executable, str(full_path)], check=True, env=get_env())
+        subprocess.run([sys.executable, str(full_path)], check=True, env=get_env(ft_limit))
         logger.info("✅ Finished %s (%.2fs)", label, time.time() - start)
         return True
     except subprocess.CalledProcessError:
@@ -124,9 +136,13 @@ def main():
     parser.add_argument("--only", help="Comma-separated modules: 01,02,03,04 or master,performance,detail,holdings")
     parser.add_argument("--skip-sync", action="store_true", help="Skip sync orchestrators")
     parser.add_argument("--continue-on-fail", action="store_true", help="Continue even if a step fails")
+    parser.add_argument("--ft-limit", type=int, help="Limit FT tickers per FT scraper")
     args = parser.parse_args()
 
     only_keys = parse_only(args.only)
+    ft_limit = _normalize_limit(args.ft_limit)
+    if ft_limit:
+        logger.info("⏱️ FT ticker limit enabled: %s", ft_limit)
     pipeline_start = time.time()
     results = []
 
@@ -136,7 +152,7 @@ def main():
 
         logger.info("🚀 Starting %s", module["name"])
         for step in module["steps"]:
-            ok = run_step(step, f"{module['name']} - {Path(step).name}")
+            ok = run_step(step, f"{module['name']} - {Path(step).name}", ft_limit=ft_limit)
             results.append((step, ok))
             if not ok and not args.continue_on_fail:
                 logger.critical("🛑 Stop pipeline: step failed (%s)", step)
@@ -150,7 +166,7 @@ def main():
                 return
 
         if not args.skip_sync:
-            ok = run_step(module["sync"], f"{module['name']} - Sync")
+            ok = run_step(module["sync"], f"{module['name']} - Sync", ft_limit=ft_limit)
             results.append((module["sync"], ok))
             if not ok and not args.continue_on_fail:
                 logger.critical("🛑 Stop pipeline: sync failed (%s)", module["sync"])

@@ -1,8 +1,10 @@
 import sys
+import os
 import asyncio
 import pandas as pd
 import re
 import random
+import argparse
 from datetime import datetime
 from pathlib import Path
 from playwright.async_api import async_playwright
@@ -31,9 +33,20 @@ REGION_DIR = OUTPUT_DIR / "Regions"
 for d in [HOLDINGS_DIR, ALLOC_DIR, SECTOR_DIR, REGION_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
+
+def _get_max_tickers(value):
+    try:
+        limit = int(value)
+        return limit if limit > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 class FTFullScraper:
-    def __init__(self):
+    def __init__(self, max_tickers=None):
         self.tickers_data = get_active_tickers("Financial Times")
+        env_limit = _get_max_tickers(os.getenv("FT_MAX_TICKERS"))
+        self.max_tickers = max_tickers or env_limit
         
         # Resume Logic: เช็คว่าทำไปแล้วหรือยัง
         self.processed_tickers = set()
@@ -254,9 +267,13 @@ class FTFullScraper:
         queue = []
         for t in self.tickers_data:
             safe_ticker = t['ticker'].replace(':', '_').replace('/', '_')
-            if safe_ticker not in self.processed_tickers:
+            safe_key = f"{safe_ticker}_{t['asset_type']}"
+            if safe_key not in self.processed_tickers:
                 queue.append(t)
 
+        if self.max_tickers:
+            queue = queue[: self.max_tickers]
+            logger.info("⏱️ Max tickers limit: %s", self.max_tickers)
         logger.info(f"🚀 Full Scraper Started. Remaining: {len(queue)}")
         
         async with async_playwright() as p:
@@ -286,4 +303,7 @@ class FTFullScraper:
 if __name__ == "__main__":
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(FTFullScraper().run())
+    parser = argparse.ArgumentParser(description="FT Holdings Scraper")
+    parser.add_argument("--max-tickers", type=int, help="Limit number of tickers to process")
+    args = parser.parse_args()
+    asyncio.run(FTFullScraper(max_tickers=args.max_tickers).run())

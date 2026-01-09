@@ -7,6 +7,7 @@ import re
 import time
 import json
 import math
+import argparse
 from bs4 import BeautifulSoup
 from pathlib import Path
 
@@ -29,8 +30,17 @@ logger = setup_logger("02_ft_fees_scraper")
 CONCURRENCY = 50
 BATCH_SIZE = 100
 
+
+def _get_max_tickers(value):
+    try:
+        limit = int(value)
+        return limit if limit > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 class FTFeesScraper:
-    def __init__(self):
+    def __init__(self, max_tickers=None):
         self.start_time = time.time()
         
         # Output Path
@@ -53,6 +63,11 @@ class FTFeesScraper:
             except: pass
 
         self.tickers = [t for t in all_tickers if t['ticker'] not in processed_tickers]
+        env_limit = _get_max_tickers(os.getenv("FT_MAX_TICKERS"))
+        self.max_tickers = max_tickers or env_limit
+        if self.max_tickers:
+            self.tickers = self.tickers[: self.max_tickers]
+            logger.info("⏱️ Max tickers limit: %s", self.max_tickers)
         logger.info(f"✅ Remaining to Scrape: {len(self.tickers)}")
         
         self.total_processed = 0
@@ -258,12 +273,15 @@ class FTFeesScraper:
             dur = time.time() - start
             logger.info(f"Batch {i+1}/{batches} | Saved: {len(results)} | Progress: {self.total_processed}/{total} | Time: {dur:.2f}s")
 
-async def main():
-    scraper = FTFeesScraper()
+async def main(max_tickers=None):
+    scraper = FTFeesScraper(max_tickers=max_tickers)
     await scraper.run()
     logger.info(f"✅ Finished! Total Records: {scraper.total_success}")
 
 if __name__ == "__main__":
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="FT Fees Scraper")
+    parser.add_argument("--max-tickers", type=int, help="Limit number of tickers to process")
+    args = parser.parse_args()
+    asyncio.run(main(max_tickers=args.max_tickers))
