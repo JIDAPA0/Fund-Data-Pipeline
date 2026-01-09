@@ -7,6 +7,7 @@ import re
 import time
 import math
 import json
+import argparse
 from bs4 import BeautifulSoup
 from datetime import datetime
 from pathlib import Path
@@ -30,8 +31,17 @@ logger = setup_logger("04_ft_policy_scraper")
 CONCURRENCY = 10
 BATCH_SIZE = 50    
 
+
+def _get_max_tickers(value):
+    try:
+        limit = int(value)
+        return limit if limit > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 class FTPolicyScraper:
-    def __init__(self):
+    def __init__(self, max_tickers=None):
         self.start_time = time.time()
         self.output_dir = project_root / "validation_output" / "Financial_Times" / "03_Detail_Static"
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -50,6 +60,11 @@ class FTPolicyScraper:
             except: pass
 
         self.tickers = [t for t in all_tickers if t['ticker'] not in processed_tickers]
+        env_limit = _get_max_tickers(os.getenv("FT_MAX_TICKERS"))
+        self.max_tickers = max_tickers or env_limit
+        if self.max_tickers:
+            self.tickers = self.tickers[: self.max_tickers]
+            logger.info("⏱️ Max tickers limit: %s", self.max_tickers)
         logger.info(f"✅ Remaining to Scrape: {len(self.tickers)}")
         
         self.total_processed = 0
@@ -283,12 +298,15 @@ class FTPolicyScraper:
             
             await asyncio.sleep(1)
 
-async def main():
-    scraper = FTPolicyScraper()
+async def main(max_tickers=None):
+    scraper = FTPolicyScraper(max_tickers=max_tickers)
     await scraper.run()
     logger.info(f"✅ Finished! Total Saved: {scraper.total_success}")
 
 if __name__ == "__main__":
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="FT Policy Scraper")
+    parser.add_argument("--max-tickers", type=int, help="Limit number of tickers to process")
+    args = parser.parse_args()
+    asyncio.run(main(max_tickers=args.max_tickers))
