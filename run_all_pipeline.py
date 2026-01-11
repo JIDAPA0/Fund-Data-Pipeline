@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.append(str(BASE_DIR))
@@ -70,6 +71,56 @@ MODULES = [
     },
 ]
 
+PARALLEL_GROUPS = {
+    "03": [
+        {
+            "label": "FT Detail",
+            "steps": [
+                "src/03_master_detail_static/financial_times/01_ft_info_scraper.py",
+                "src/03_master_detail_static/financial_times/02_ft_fees_scraper.py",
+                "src/03_master_detail_static/financial_times/03_ft_risk_scraper.py",
+                "src/03_master_detail_static/financial_times/04_ft_policy_scraper.py",
+            ],
+        },
+        {
+            "label": "YF Detail",
+            "steps": [
+                "src/03_master_detail_static/yahoo_finance/01_yf_info_scraper.py",
+                "src/03_master_detail_static/yahoo_finance/02_yf_fees_scraper.py",
+                "src/03_master_detail_static/yahoo_finance/03_yf_risk_scraper.py",
+                "src/03_master_detail_static/yahoo_finance/04_yf_policy_scraper.py",
+            ],
+        },
+        {
+            "label": "SA Detail",
+            "steps": [
+                "src/03_master_detail_static/stock_analysis/01_sa_detail_scraper.py",
+            ],
+        },
+    ],
+    "04": [
+        {
+            "label": "FT Holdings",
+            "steps": [
+                "src/04_holdings_acquisition/financial_times/01_ft_holdings_scraper.py",
+            ],
+        },
+        {
+            "label": "YF Holdings",
+            "steps": [
+                "src/04_holdings_acquisition/yahoo_finance/01_yf_holdings_scraper.py",
+            ],
+        },
+        {
+            "label": "SA Holdings",
+            "steps": [
+                "src/04_holdings_acquisition/stock_analysis/01_sa_holdings_scraper.py",
+                "src/04_holdings_acquisition/stock_analysis/02_sa_allocations_scraper.py",
+            ],
+        },
+    ],
+}
+
 
 def parse_only(value):
     if not value:
@@ -131,12 +182,48 @@ def run_step(path, label, ft_limit=None):
         return False
 
 
+def run_steps(steps, label_prefix, ft_limit=None, continue_on_fail=False):
+    group_results = []
+    group_ok = True
+    for step in steps:
+        ok = run_step(step, f"{label_prefix} - {Path(step).name}", ft_limit=ft_limit)
+        group_results.append((step, ok))
+        if not ok:
+            group_ok = False
+            if not continue_on_fail:
+                break
+    return group_results, group_ok
+
+
+def run_parallel_groups(groups, module_name, ft_limit=None, continue_on_fail=False):
+    results = []
+    overall_ok = True
+    with ThreadPoolExecutor(max_workers=len(groups)) as executor:
+        futures = {
+            executor.submit(
+                run_steps,
+                group["steps"],
+                f"{module_name} - {group['label']}",
+                ft_limit,
+                continue_on_fail,
+            ): group["label"]
+            for group in groups
+        }
+        for future in as_completed(futures):
+            group_results, group_ok = future.result()
+            results.extend(group_results)
+            if not group_ok:
+                overall_ok = False
+    return results, overall_ok
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run full data pipeline (Modules 01-04 + Sync)")
     parser.add_argument("--only", help="Comma-separated modules: 01,02,03,04 or master,performance,detail,holdings")
     parser.add_argument("--skip-sync", action="store_true", help="Skip sync orchestrators")
     parser.add_argument("--continue-on-fail", action="store_true", help="Continue even if a step fails")
     parser.add_argument("--ft-limit", type=int, help="Limit FT tickers per FT scraper")
+    parser.add_argument("--parallel-sources", action="store_true", help="Run FT/YF/SA steps in parallel for modules 03/04")
     args = parser.parse_args()
 
     only_keys = parse_only(args.only)
@@ -151,19 +238,39 @@ def main():
             continue
 
         logger.info("🚀 Starting %s", module["name"])
-        for step in module["steps"]:
-            ok = run_step(step, f"{module['name']} - {Path(step).name}", ft_limit=ft_limit)
-            results.append((step, ok))
+        if args.parallel_sources and module["key"] in PARALLEL_GROUPS:
+            logger.info("⚡ Running sources in parallel for %s", module["name"])
+            group_results, ok = run_parallel_groups(
+                PARALLEL_GROUPS[module["key"]],
+                module["name"],
+                ft_limit=ft_limit,
+                continue_on_fail=args.continue_on_fail,
+            )
+            results.extend(group_results)
             if not ok and not args.continue_on_fail:
-                logger.critical("🛑 Stop pipeline: step failed (%s)", step)
+                logger.critical("🛑 Stop pipeline: parallel group failed (%s)", module["name"])
                 log_execution_summary(
                     logger,
                     start_time=pipeline_start,
                     total_items=0,
                     status="Failed",
-                    extra_info={"failed_step": step},
+                    extra_info={"failed_step": module["name"]},
                 )
                 return
+        else:
+            for step in module["steps"]:
+                ok = run_step(step, f"{module['name']} - {Path(step).name}", ft_limit=ft_limit)
+                results.append((step, ok))
+                if not ok and not args.continue_on_fail:
+                    logger.critical("🛑 Stop pipeline: step failed (%s)", step)
+                    log_execution_summary(
+                        logger,
+                        start_time=pipeline_start,
+                        total_items=0,
+                        status="Failed",
+                        extra_info={"failed_step": step},
+                    )
+                    return
 
         if not args.skip_sync:
             ok = run_step(module["sync"], f"{module['name']} - Sync", ft_limit=ft_limit)
