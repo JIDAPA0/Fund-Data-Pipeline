@@ -8,6 +8,12 @@ sys.path.append(str(BASE_DIR))
 from src.utils.db_connector import insert_dataframe, get_db_engine, init_fund_info_table, init_fund_fees_table, init_fund_risk_table, init_fund_policy_table
 
 HASHED_DIR = BASE_DIR / "data" / "04_hashed" / "static_details"
+UNIQUE_KEYS = {
+    "stg_fund_info": ["ticker", "asset_type", "source"],
+    "stg_fund_fees": ["ticker", "asset_type", "source"],
+    "stg_fund_risk": ["ticker", "asset_type", "source"],
+    "stg_fund_policy": ["ticker", "asset_type", "source"],
+}
 
 
 def ensure_tables():
@@ -42,6 +48,12 @@ def load_file(filename: str, table: str, required_cols):
         df["updated_at"] = df["updated_at"].fillna(pd.Timestamp.utcnow())
     if "shares_out" in df.columns:
         df["shares_out"] = pd.to_numeric(df["shares_out"], errors="coerce")
+
+    keys = UNIQUE_KEYS.get(table)
+    if keys and all(k in df.columns for k in keys):
+        if "updated_at" in df.columns:
+            df = df.sort_values("updated_at")
+        df = df.drop_duplicates(subset=keys, keep="last")
 
     insert_dataframe(df, table)
     print(f"✅ Loaded {len(df)} rows into {table}")

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict yeeEvmXvoj9IYicVJLqN8DHrbyHdz3gjiTEVWcy6uSQAR1XzuaN5foDcyVZkEj1
+\restrict vy6hYJtKyBty0OYNd03NUOHvA40bghZwtOgoKiUPcNmQhPuRqqZUepP8wErNWsg
 
 -- Dumped from database version 14.20 (Homebrew)
 -- Dumped by pg_dump version 14.20 (Homebrew)
@@ -233,13 +233,13 @@ CREATE TABLE public.stg_fund_info (
     name character varying(255),
     isin_number character varying(20),
     cusip_number character varying(20),
-    issuer character varying(100),
-    category character varying(100),
+    issuer text,
+    category text,
     index_benchmark character varying(255),
     inception_date date,
-    exchange character varying(100),
-    region character varying(100),
-    country character varying(100),
+    exchange text,
+    region text,
+    country text,
     leverage character varying(20),
     options character varying(20),
     shares_out numeric(20,2),
@@ -878,5 +878,5 @@ CREATE INDEX idx_stg_price_ticker ON public.stg_price_history USING btree (ticke
 -- PostgreSQL database dump complete
 --
 
-\unrestrict yeeEvmXvoj9IYicVJLqN8DHrbyHdz3gjiTEVWcy6uSQAR1XzuaN5foDcyVZkEj1
+\unrestrict vy6hYJtKyBty0OYNd03NUOHvA40bghZwtOgoKiUPcNmQhPuRqqZUepP8wErNWsg
 
