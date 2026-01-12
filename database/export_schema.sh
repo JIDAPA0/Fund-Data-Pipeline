@@ -10,6 +10,6 @@ pg_dump \
   --schema-only \
   --no-owner \
   --file="database/schema_dump.sql" \
-  --dbname="postgresql://${DB_USER:-postgres}:${PGPASSWORD}@${DB_HOST:-localhost}:${DB_PORT:-5432}/${DB_NAME:-postgres}"
+  --dbname="postgresql://${DB_USER:-postgres}@${DB_HOST:-localhost}:${DB_PORT:-5432}/${DB_NAME:-postgres}"
 
 echo "✅ Schema exported to database/schema_dump.sql"
