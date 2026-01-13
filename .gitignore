@@ -10,3 +10,6 @@ logs/
 tmp/
 logs/**/*.log
 validation_output/
+database/*.dump
+database/*db_dump*.sql
+database/*db_dump*.zip
