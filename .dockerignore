@@ -1,9 +1,12 @@
 .venv/
+.venv_fund_etl/
 venv/
 __pycache__/
 *.py[cod]
 *$py.class
 
+data/
+database/
 logs/
 validation_output/
 *.csv
