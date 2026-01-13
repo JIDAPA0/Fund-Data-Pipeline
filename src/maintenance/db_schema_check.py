@@ -6,7 +6,7 @@ from sqlalchemy import text
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
-from src.utils.db_connector import get_db_engine
+from src.utils.db_connector import get_db_engine, get_db_schema
 
 # ==========================================
 # 1. DB CONFIGURATION
@@ -32,17 +32,17 @@ TABLE_SPECS = {
 }
 
 
-def column_exists(conn, table: str, column: str) -> bool:
+def column_exists(conn, table: str, column: str, schema: str) -> bool:
     query = text(
         """
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public'
+        WHERE table_schema = :schema
           AND table_name = :table
           AND column_name = :column
         """
     )
-    return conn.execute(query, {"table": table, "column": column}).fetchone() is not None
+    return conn.execute(query, {"schema": schema, "table": table, "column": column}).fetchone() is not None
 
 
 def constraint_exists(conn, name: str) -> bool:
@@ -85,8 +85,10 @@ def get_pk_name(conn, table: str) -> str | None:
     return row[0] if row else None
 
 
-def ensure_id_primary_key(conn, table: str, unique_name: str | None, unique_cols: list[str]) -> None:
-    if not column_exists(conn, table, "id"):
+def ensure_id_primary_key(
+    conn, table: str, unique_name: str | None, unique_cols: list[str], schema: str
+) -> None:
+    if not column_exists(conn, table, "id", schema):
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN id SERIAL"))
         conn.execute(text(f"UPDATE {table} SET id = DEFAULT WHERE id IS NULL"))
         conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN id SET NOT NULL"))
@@ -118,16 +120,17 @@ def ensure_id_primary_key(conn, table: str, unique_name: str | None, unique_cols
 
 def main() -> None:
     engine = get_db_engine()
+    schema = get_db_schema()
     updated = []
     skipped = []
 
     with engine.begin() as conn:
         for table, (unique_name, unique_cols) in TABLE_SPECS.items():
-            if not column_exists(conn, table, "id"):
-                ensure_id_primary_key(conn, table, unique_name, unique_cols)
+            if not column_exists(conn, table, "id", schema):
+                ensure_id_primary_key(conn, table, unique_name, unique_cols, schema)
                 updated.append(table)
             else:
-                ensure_id_primary_key(conn, table, unique_name, unique_cols)
+                ensure_id_primary_key(conn, table, unique_name, unique_cols, schema)
                 skipped.append(table)
 
     print("DB schema check completed.")

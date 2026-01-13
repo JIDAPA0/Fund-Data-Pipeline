@@ -1,5 +1,7 @@
 import os
 import sys
+import csv
+import re
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
@@ -25,6 +27,14 @@ else:
 # DB CONNECTION UTILS
 # ----------------------------------------------------------------------
 
+_SCHEMA_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+def get_db_schema() -> str:
+    schema = os.getenv("DB_SCHEMA", "fund_global")
+    if not _SCHEMA_PATTERN.match(schema):
+        raise ValueError("❌ DB_SCHEMA must contain only letters, numbers, and underscores")
+    return schema
+
 def get_db_url() -> str:
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
@@ -41,11 +51,18 @@ def get_db_url() -> str:
 def get_db_engine():
     try:
         db_url = get_db_url()
+        schema = get_db_schema()
+        connect_args = {
+            "client_encoding": "utf8",
+            "options": f"-c search_path={schema}",
+        }
         engine = create_engine(
             db_url,
             isolation_level="AUTOCOMMIT",
-            connect_args={'client_encoding': 'utf8'}
+            connect_args=connect_args,
         )
+        with engine.begin() as conn:
+            conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
         return engine
     except Exception as e:
         print(f"❌ สร้าง DB Engine ไม่สำเร็จ: {e}")
@@ -378,6 +395,42 @@ def init_fund_metrics_table(engine):
 # HELPER FUNCTIONS
 # ----------------------------------------------------------------------
 
+def _load_filter_tickers() -> Optional[set]:
+    raw = os.getenv("FILTER_TICKERS") or os.getenv("TICKERS")
+    file_path = os.getenv("FILTER_TICKERS_FILE") or os.getenv("TICKERS_FILE")
+    tickers = set()
+
+    if raw:
+        for item in re.split(r"[,\\s]+", raw.strip()):
+            if not item:
+                continue
+            if ":" in item:
+                ticker, asset = item.split(":", 1)
+                ticker = ticker.strip()
+                asset = asset.strip()
+                if ticker:
+                    tickers.add((ticker.upper(), asset.upper() if asset else None))
+            else:
+                tickers.add((item.upper(), None))
+
+    if file_path and Path(file_path).exists():
+        try:
+            with open(file_path, newline="") as handle:
+                reader = csv.reader(handle)
+                for row in reader:
+                    if not row:
+                        continue
+                    head = row[0].strip()
+                    if not head or head.lower() == "ticker":
+                        continue
+                    asset = row[1].strip() if len(row) > 1 else ""
+                    tickers.add((head.upper(), asset.upper() if asset else None))
+        except Exception as e:
+            print(f"⚠️  อ่าน FILTER_TICKERS_FILE ไม่สำเร็จ: {e}")
+
+    return tickers or None
+
+
 def get_active_tickers(source_name: str, asset_type: Optional[str] = None) -> List[Dict]:
     engine = get_db_engine()
     source_map = {
@@ -399,6 +452,19 @@ def get_active_tickers(source_name: str, asset_type: Optional[str] = None) -> Li
         with engine.connect() as conn:
             result = conn.execute(sql, params)
             tickers = [{"ticker": row.ticker, "asset_type": row.asset_type, "name": row.name} for row in result]
+            filter_pairs = _load_filter_tickers()
+            if filter_pairs:
+                only_ticker = {t for t, a in filter_pairs if not a}
+                with_asset = {(t, a) for t, a in filter_pairs if a}
+                before = len(tickers)
+                filtered = []
+                for item in tickers:
+                    ticker = str(item.get("ticker", "")).upper()
+                    asset = str(item.get("asset_type", "")).upper()
+                    if (ticker, asset) in with_asset or ticker in only_ticker:
+                        filtered.append(item)
+                tickers = filtered
+                print(f"🔎 Filter tickers: {len(tickers)}/{before} (Source: {clean_source})")
             print(f"📋 ดึงข้อมูลจาก DB สำเร็จ: {len(tickers)} ตัว (Source: {clean_source})")
             return tickers
     except Exception as e:

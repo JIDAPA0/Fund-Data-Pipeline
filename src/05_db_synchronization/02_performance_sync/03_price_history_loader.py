@@ -21,7 +21,7 @@ while not (project_root / 'src').exists():
     project_root = project_root.parent
 sys.path.append(str(project_root))
 
-from src.utils.db_connector import get_db_connection
+from src.utils.db_connector import get_db_connection, get_db_schema
 
 # ==========================================
 # 1. CONFIGURATION
@@ -79,7 +79,7 @@ def upsert_to_db(df, engine):
         with engine.begin() as conn:
             conn.execute(text(f"DROP TABLE IF EXISTS {temp_table}"))
 
-def cleanup_temp_tables(engine):
+def cleanup_temp_tables(engine, schema: str):
     try:
         with engine.begin() as conn:
             rows = conn.execute(
@@ -87,15 +87,16 @@ def cleanup_temp_tables(engine):
                     """
                     SELECT tablename
                     FROM pg_tables
-                    WHERE schemaname = 'public'
+                    WHERE schemaname = :schema
                       AND tablename LIKE 'temp_stg_price_history_%'
                     ORDER BY tablename
                     """
-                )
+                ),
+                {"schema": schema},
             ).fetchall()
             for row in rows:
                 name = row[0]
-                conn.execute(text(f'DROP TABLE IF EXISTS public."{name}"'))
+                conn.execute(text(f'DROP TABLE IF EXISTS "{schema}"."{name}"'))
             if rows:
                 print(f"🧹 Cleaned up {len(rows)} leftover temp tables.")
     except Exception as exc:
@@ -181,7 +182,8 @@ def write_progress(processed, total, success, errors, total_rows, start_time):
 
 def main():
     engine = get_db_connection()
-    cleanup_temp_tables(engine)
+    schema = get_db_schema()
+    cleanup_temp_tables(engine, schema)
     
     scan_dirs = discover_hashed_dirs(HASHED_BASE_DIR)
     if not scan_dirs:
