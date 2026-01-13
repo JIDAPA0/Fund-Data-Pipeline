@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: funds_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - funds_db_data:/var/lib/postgresql/data
 
@@ -26,6 +26,6 @@ services:
       - ./validation_output:/app/validation_output
 
     tty: true 
-
+ 
 volumes:
   funds_db_data:

@@ -1,4 +1,5 @@
 import asyncio
+import csv
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -238,6 +239,32 @@ def prepare_dataframe(df_source, target_columns, extra_defaults={}):
             
     return df_out
 
+def load_filter_tickers():
+    raw = os.getenv("FILTER_TICKERS") or os.getenv("TICKERS")
+    file_path = os.getenv("FILTER_TICKERS_FILE") or os.getenv("TICKERS_FILE")
+    tickers = set()
+
+    if raw:
+        for item in raw.replace(",", " ").split():
+            if item:
+                tickers.add(item.upper())
+
+    if file_path and Path(file_path).exists():
+        try:
+            with open(file_path, newline="") as handle:
+                reader = csv.reader(handle)
+                for row in reader:
+                    if not row:
+                        continue
+                    head = row[0].strip()
+                    if not head or head.lower() == "ticker":
+                        continue
+                    tickers.add(head.upper())
+        except Exception as e:
+            logger.warning(f"⚠️ อ่าน FILTER_TICKERS_FILE ไม่สำเร็จ: {e}")
+
+    return tickers
+
 def process_csv_and_split(csv_path, output_dir):
     try:
         logger.info("🔄 Processing & Splitting Data...")
@@ -245,6 +272,12 @@ def process_csv_and_split(csv_path, output_dir):
         
         # Rename columns using FIXED Full Mapping
         df_raw.rename(columns=FULL_MAPPING, inplace=True)
+
+        filter_tickers = load_filter_tickers()
+        if filter_tickers and "ticker" in df_raw.columns:
+            before = len(df_raw)
+            df_raw = df_raw[df_raw["ticker"].astype(str).str.upper().isin(filter_tickers)]
+            logger.info(f"🔎 Filter tickers: {len(df_raw)}/{before}")
         
         # Add Common Columns
         df_raw['asset_type'] = 'ETF'

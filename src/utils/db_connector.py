@@ -529,5 +529,6 @@ if __name__ == "__main__":
         init_fund_fees_table(engine)
         init_fund_risk_table(engine)
         init_fund_policy_table(engine)
-        init_fund_holdings_table(engine) 
+        init_fund_holdings_table(engine)
+        init_fund_metrics_table(engine)
         print("✨ ฐานข้อมูลพร้อมใช้งานแล้ว!")
