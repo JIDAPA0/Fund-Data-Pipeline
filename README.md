@@ -23,11 +23,10 @@ Extracts fund data (lists, performance, static details, holdings) and syncs into
 
 ### Docker
 - Build & run: `docker-compose up --build`
-- Container entrypoint runs `main_pipeline.py` with `PYTHONPATH=/app`.
+- Container entrypoint installs `cron_schedule` and starts cron (runs on schedule).
 
 ### Cron
-- `cron_schedule` runs the full pipeline Mon–Fri 06:00 Asia/Bangkok (container TZ already set):  
-  `0 6 * * 1-5 cd /app && PYTHONPATH=/app /usr/bin/python src/05_db_synchronization/main_pipeline.py`
+- `cron_schedule` runs the full pipeline Mon–Fri 06:00 Asia/Bangkok (container TZ already set).
 
 ### Data flow (modules, flat file layout)
 1. Master sync: scrapers → validator/remediator → loader.

@@ -1,3 +1,7 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PYTHONPATH=/app
+
 # ┌───────────── minute (0 - 59)
 # │ ┌───────────── hour (0 - 23)
 # │ │ ┌───────────── day of month (1 - 31)
@@ -5,5 +9,5 @@
 # │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday=0)
 # │ │ │ │ │
 # │ │ │ │ │
-# Example (update path): Run integrity gate on weekdays at 06:00
-0 6 * * 1-5 cd /path/to/Fund_ETL && /bin/bash scripts/run_integrity_gate.sh >> /path/to/Fund_ETL/logs/cron_integrity_gate.log 2>&1
+# Run main pipeline on weekdays at 06:00 (Asia/Bangkok)
+0 6 * * 1-5 cd /app && /usr/local/bin/python src/05_db_synchronization/main_pipeline.py >> /app/logs/cron_main_pipeline.log 2>&1

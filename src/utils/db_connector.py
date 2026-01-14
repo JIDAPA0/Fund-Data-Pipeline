@@ -30,7 +30,7 @@ else:
 _SCHEMA_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 def get_db_schema() -> str:
-    schema = os.getenv("DB_SCHEMA", "fund_global")
+    schema = os.getenv("DB_SCHEMA", "global_funds")
     if not _SCHEMA_PATTERN.match(schema):
         raise ValueError("❌ DB_SCHEMA must contain only letters, numbers, and underscores")
     return schema

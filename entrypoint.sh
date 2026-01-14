@@ -4,5 +4,11 @@ set -e
 cd /app
 export PYTHONPATH=/app
 
-echo "Starting Fund ETL main pipeline..."
-python src/05_db_synchronization/main_pipeline.py
+mkdir -p /app/logs /app/data /app/validation_output /app/tmp
+
+if [ -f /app/cron_schedule ]; then
+  crontab /app/cron_schedule
+fi
+
+echo "Starting cron..."
+exec cron -f

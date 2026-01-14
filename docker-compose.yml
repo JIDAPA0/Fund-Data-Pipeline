@@ -4,6 +4,7 @@ services:
   db:
     image: postgres:16
     container_name: funds_postgres_container
+    restart: unless-stopped
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
@@ -16,6 +17,7 @@ services:
   scraper:
     build: .
     container_name: fund_etl_app
+    restart: unless-stopped
     depends_on:
       - db
     env_file:
@@ -26,6 +28,19 @@ services:
       - ./validation_output:/app/validation_output
 
     tty: true 
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: funds_pgadmin_container
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: atom@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
  
 volumes:
   funds_db_data:
+  pgadmin_data:
