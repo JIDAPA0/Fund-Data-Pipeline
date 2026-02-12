@@ -1,86 +1,124 @@
+﻿import argparse
+import os
 import subprocess
 import sys
 import time
-import os
 from pathlib import Path
-import logging
+
+from prefect import flow, task
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-sys.path.append(str(BASE_DIR))
+if str(BASE_DIR) not in sys.path:
+    sys.path.append(str(BASE_DIR))
 
-from src.utils.logger import setup_logger, log_execution_summary
-
-# Use INFO level; category resolved by name prefix
-logger = setup_logger("05_sync_GLOBAL_PIPELINE", logging.INFO)
-
-GLOBAL_PIPELINE = [
-    {
+MODULES = {
+    "master": {
         "name": "MASTER LIST SYNC (Module 01 + 05.01)",
-        "path": "src/05_db_synchronization/01_master_sync/07_master_sync_orchestrator.py"
+        "path": "src/05_db_synchronization/01_master_sync/07_master_sync_orchestrator.py",
     },
-    {
+    "performance": {
         "name": "PERFORMANCE SYNC (Module 02 + 05.02)",
-        "path": "src/05_db_synchronization/02_performance_sync/05_performance_sync_orchestrator.py"
+        "path": "src/05_db_synchronization/02_performance_sync/05_performance_sync_orchestrator.py",
     },
-    {
+    "detail": {
         "name": "DETAIL SYNC (Module 03 + 05.03)",
-        "path": "src/05_db_synchronization/03_detail_sync/05_detail_sync_orchestrator.py"
+        "path": "src/05_db_synchronization/03_detail_sync/05_detail_sync_orchestrator.py",
     },
-    {
+    "holdings": {
         "name": "HOLDINGS SYNC (Module 04 + 05.04)",
-        "path": "src/05_db_synchronization/04_holdings_sync/06_holdings_sync_orchestrator.py"
+        "path": "src/05_db_synchronization/04_holdings_sync/06_holdings_sync_orchestrator.py",
     },
-]
+}
+MODULE_ORDER = ["master", "performance", "detail", "holdings"]
 
-def run_orchestrator(module):
-    name = module["name"]
+
+@task(name="run-module", retries=0)
+def run_module(module_key: str) -> bool:
+    module = MODULES[module_key]
     full_path = BASE_DIR / module["path"]
-    
+
     if not full_path.exists():
-        logger.error(f"❌ Orchestrator Not Found: {full_path}")
+        print(f"Module file not found: {full_path}")
         return False
 
-    logger.info(f"🌐 [GLOBAL] Starting Module: {name}")
+    print(f"[START] {module['name']}")
     start = time.time()
-    
+
     env = os.environ.copy()
     env["PYTHONPATH"] = str(BASE_DIR)
 
     try:
-        
         subprocess.run([sys.executable, str(full_path)], check=True, env=env)
-        
-        duration = time.time() - start
-        logger.info(f"✅ [GLOBAL] Module {name} Finished ({round(duration, 2)}s)")
+        duration = round(time.time() - start, 2)
+        print(f"[DONE] {module['name']} ({duration}s)")
         return True
     except subprocess.CalledProcessError:
-        logger.error(f"❌ [GLOBAL] Module {name} Failed during execution.")
+        print(f"[FAIL] {module['name']}")
         return False
 
-def main():
-    pipeline_start = time.time()
-    logger.info(f"{'='*60}")
-    logger.info("🏁 STARTING GLOBAL DATA PIPELINE (END-TO-END)")
-    logger.info(f"{'='*60}")
-    
+
+@flow(name="fund-module-pipeline")
+def module_pipeline(module_key: str):
+    if module_key not in MODULES:
+        raise ValueError(f"Unsupported module: {module_key}")
+
+    success = run_module(module_key)
+    if not success:
+        raise RuntimeError(f"Module failed: {module_key}")
+
+
+@flow(name="fund-global-pipeline")
+def global_pipeline():
     results = []
-    for module in GLOBAL_PIPELINE:
-        success = run_orchestrator(module)
-        results.append((module["name"], success))
-        
-        
+    for module_key in MODULE_ORDER:
+        success = run_module(module_key)
+        results.append((module_key, success))
         if not success:
-            logger.critical("🛑 Critical Module failed. Stopping Global Pipeline to prevent data corruption.")
             break
 
-    
-    log_execution_summary(
-        logger,
-        start_time=pipeline_start,
-        total_items=0,
-        status="All Completed" if all(r[1] for r in results) else "Partial Completion",
-        extra_info={f"Module {r[0]}": "Success" if r[1] else "Failed" for r in results}
+    failed = [m for m, ok in results if not ok]
+    if failed:
+        raise RuntimeError(f"Pipeline failed at module(s): {', '.join(failed)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fund pipeline with Prefect")
+    parser.add_argument(
+        "--module",
+        choices=["all", *MODULE_ORDER],
+        default="all",
+        help="Run all modules or a single module",
     )
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Create a Prefect scheduled runner instead of immediate execution",
+    )
+    parser.add_argument("--cron", default="0 6 * * 1-5", help="Cron schedule for --serve")
+    parser.add_argument("--timezone", default="Asia/Bangkok", help="Timezone for --serve")
+    args = parser.parse_args()
+
+    if args.serve:
+        if args.module == "all":
+            global_pipeline.serve(
+                name="fund-global-pipeline",
+                cron=args.cron,
+                timezone=args.timezone,
+            )
+        else:
+            module_pipeline.serve(
+                name=f"fund-{args.module}-pipeline",
+                cron=args.cron,
+                timezone=args.timezone,
+                parameters={"module_key": args.module},
+            )
+        return
+
+    if args.module == "all":
+        global_pipeline()
+    else:
+        module_pipeline(module_key=args.module)
+
 
 if __name__ == "__main__":
     main()

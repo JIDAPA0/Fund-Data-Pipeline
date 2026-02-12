@@ -1,18 +1,19 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   db:
-    image: postgres:15
+    image: mysql:8.4
     container_name: fund_db_container
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password123}
-      POSTGRES_DB: ${DB_NAME:-fund_data}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword123}
+      MYSQL_DATABASE: ${DB_NAME:-fund_data}
+      MYSQL_USER: ${DB_USER:-fund_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password123}
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
 
   scraper:
     build: .
@@ -25,8 +26,7 @@ services:
       - .:/app
       - ./logs:/app/logs
       - ./validation_output:/app/validation_output
-
-    tty: true 
+    tty: true
 
 volumes:
-  postgres_data:
+  mysql_data:

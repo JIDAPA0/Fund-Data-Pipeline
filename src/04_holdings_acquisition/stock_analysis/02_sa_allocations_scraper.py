@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import asyncio
 import pandas as pd
@@ -8,52 +8,45 @@ import time
 from playwright.async_api import async_playwright, TimeoutError
 from typing import List, Dict, Any, Set
 from dotenv import load_dotenv
-import psycopg2 
+from sqlalchemy import text
 
-# --- 🛠️ SETUP PATH & IMPORTS ------------------------------------------------
+# --- Setup path and imports ---------------------------------------------------
 current_file = Path(__file__).resolve()
 PROJECT_ROOT = current_file.parents[3]
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-print(f"📍 Project Root detected at: {PROJECT_ROOT}")
+print(f"Project Root detected at: {PROJECT_ROOT}")
 
-# --- ⚙️ LOAD CONFIG FROM .ENV ------------------------------------------------
+# --- Load env ----------------------------------------------------------------
 env_path = PROJECT_ROOT / ".env"
 if env_path.exists():
-    print(f"📂 Loading environment variables from: {env_path}")
+    print(f"Loading environment variables from: {env_path}")
     load_dotenv(dotenv_path=env_path)
 else:
-    print(f"⚠️ Warning: .env file not found at {env_path}")
+    print(f"Warning: .env file not found at {env_path}")
 
-# Config Login
 SA_EMAIL = os.getenv("SA_EMAIL")
 SA_PASSWORD = os.getenv("SA_PASSWORD")
 LOGIN_URL = "https://stockanalysis.com/login"
 
 if not SA_EMAIL or not SA_PASSWORD:
-    print("❌ FATAL ERROR: Missing SA_EMAIL or SA_PASSWORD in .env")
+    print("FATAL ERROR: Missing SA_EMAIL or SA_PASSWORD in .env")
     exit(1)
 
+from src.utils.db_connector import get_db_engine
 
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_PORT = os.getenv("DB_PORT")
-
-# --- ⚙️ SCRAPER SETTINGS -----------------------------------------------------
+# --- Scraper settings ---------------------------------------------------------
 BASE_OUTPUT_DIR = PROJECT_ROOT / "validation_output/Stock_Analysis/05_Allocations"
 BASE_URL = "https://stockanalysis.com/etf/"
-MAX_CONCURRENT_TICKERS = 5 
+MAX_CONCURRENT_TICKERS = 5
 
-# --- Utility Functions ----------------------------------------------------
 
 def get_processed_tickers(target_dir: Path) -> Set[str]:
     if not target_dir.exists():
         return set()
-    processed_files = target_dir.glob("*_allocations.csv") 
+    processed_files = target_dir.glob("*_allocations.csv")
     processed_tickers = set()
     for file_path in processed_files:
         if file_path.stat().st_size > 0:
@@ -61,39 +54,26 @@ def get_processed_tickers(target_dir: Path) -> Set[str]:
             processed_tickers.add(ticker)
     return processed_tickers
 
+
 def fetch_tickers_direct_from_db():
-    print("🔌 Connecting to Database directly...")
-    conn = None
+    print("Connecting to Database directly...")
     tickers = []
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            port=DB_PORT
-        )
-        cur = conn.cursor()
-        
-        
-        sql = "SELECT ticker FROM stg_security_master WHERE source = 'Stock Analysis'"
-        
-        cur.execute(sql)
-        rows = cur.fetchall()
-        
-        
+        engine = get_db_engine()
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT ticker FROM stg_security_master WHERE source = :source"),
+                {"source": "Stock Analysis"},
+            ).fetchall()
         tickers = [row[0] for row in rows]
-        print(f"✅ Query Success: Found {len(tickers)} tickers.")
-        
+        print(f"Query success: found {len(tickers)} tickers.")
     except Exception as e:
-        print(f"❌ Database Error: {e}")
-    finally:
-        if conn:
-            conn.close()
+        print(f"Database error: {e}")
     return tickers
 
+
 async def login_to_sa(page):
-    print(f"🔐 Attempting Login to {LOGIN_URL} as {SA_EMAIL}...")
+    print(f"Attempting login to {LOGIN_URL} as {SA_EMAIL}...")
     try:
         await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
         if "login" in page.url:
@@ -102,22 +82,22 @@ async def login_to_sa(page):
             await page.keyboard.press("Enter")
             await page.wait_for_url(lambda url: "login" not in url, timeout=30000)
             if "login" not in page.url:
-                print("✅ Login Successful!")
-                return True 
-            else:
-                print("❌ Login Failed")
-                return False 
-        else:
-            print("✅ Session already authenticated.")
-            return True
+                print("Login successful")
+                return True
+            print("Login failed")
+            return False
+
+        print("Session already authenticated")
+        return True
     except Exception as e:
-        print(f"❌ Critical Login Error: {e}")
+        print(f"Critical login error: {e}")
         return False
+
 
 async def extract_sector_allocation(page, ticker, target_dir):
     url = f"{BASE_URL}{ticker.lower()}/holdings/"
-    save_path = target_dir / f"{ticker}_allocations.csv" 
-    
+    save_path = target_dir / f"{ticker}_allocations.csv"
+
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=60000)
         try:
@@ -146,14 +126,14 @@ async def extract_sector_allocation(page, ticker, target_dir):
                         })
                     except ValueError:
                         continue
+
         if extracted_data:
-            df = pd.DataFrame(extracted_data)
-            df.to_csv(save_path, index=False, encoding='utf-8')
+            pd.DataFrame(extracted_data).to_csv(save_path, index=False, encoding='utf-8')
             return True
-        else:
-            return False
-    except Exception as e:
         return False
+    except Exception:
+        return False
+
 
 def generate_report(output_dir, start_time, total, success, skipped):
     end_time = time.time()
@@ -162,87 +142,82 @@ def generate_report(output_dir, start_time, total, success, skipped):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     report_path = output_dir / f"Report_Allocations_{timestamp}.txt"
     with open(report_path, 'w', encoding='utf-8') as f:
-        f.write(f"📊 SCRAPING REPORT: {total} Tickers\n")
-        f.write(f"✅ Success: {success} | ⚠️ Skipped: {skipped}\n")
-        f.write(f"⏱️ Time: {minutes}m {seconds:.2f}s\n")
-    print(f"\n📝 Report: {report_path}")
+        f.write(f"SCRAPING REPORT: {total} tickers\n")
+        f.write(f"Success: {success} | Skipped: {skipped}\n")
+        f.write(f"Time: {minutes}m {seconds:.2f}s\n")
+    print(f"Report: {report_path}")
 
-async def worker(ticker: str, context, TODAY_DIR: Path, all_tickers: List[str], counters: Dict[str, Any]):
+
+async def worker(ticker: str, context, today_dir: Path, all_tickers: List[str], counters: Dict[str, Any]):
     page = await context.new_page()
     try:
         async with counters['lock']:
             counters['total_count'] += 1
             current_index = counters['total_count']
-        print(f"[{current_index}/{len(all_tickers)}] 📊 Allocations: {ticker} ... ", end='', flush=True)
-        is_saved = await extract_sector_allocation(page, ticker, TODAY_DIR)
+
+        print(f"[{current_index}/{len(all_tickers)}] allocations: {ticker} ... ", end='', flush=True)
+        is_saved = await extract_sector_allocation(page, ticker, today_dir)
+
         async with counters['lock']:
             if is_saved:
                 counters['success_count'] += 1
-                print(f"✅ Extracted")
+                print("saved")
             else:
                 counters['skipped_count'] += 1
-                print(f"⚠️  No Data")
+                print("no data")
     except Exception as e:
-        print(f"🚨 Worker Error for {ticker}: {e}")
+        print(f"Worker error for {ticker}: {e}")
         async with counters['lock']:
-            counters['skipped_count'] += 1    
+            counters['skipped_count'] += 1
     finally:
         await page.close()
 
-# --- MAIN LOGIC ---------------------------------------------------------------
+
 async def main():
-    print("\n--- 🚀 STARTING SECTOR ALLOCATION SCRAPER (DIRECT DB MODE) ---")
+    print("Starting sector allocation scraper")
     start_time = time.time()
-    
+
     today_str = datetime.now().strftime('%Y-%m-%d')
-    TODAY_DIR = BASE_OUTPUT_DIR / today_str
-    TODAY_DIR.mkdir(parents=True, exist_ok=True)
-    
-    
+    today_dir = BASE_OUTPUT_DIR / today_str
+    today_dir.mkdir(parents=True, exist_ok=True)
+
     all_tickers = fetch_tickers_direct_from_db()
-    
     if not all_tickers:
-        print("❌ Still no tickers found even with direct query.")
-        print("💡 ตรวจสอบว่าใน DB คอลัมน์ source เขียนว่า 'Stock Analysis' จริงหรือไม่")
+        print("No tickers found from database")
         return
 
-    processed_tickers = get_processed_tickers(TODAY_DIR)
+    processed_tickers = get_processed_tickers(today_dir)
     tickers_to_process = [t for t in all_tickers if t not in processed_tickers]
-    
-    print(f"📋 Loaded {len(all_tickers)} tickers.")
-    print(f"⏳ {len(tickers_to_process)} tickers remaining.")
-    
+
+    print(f"Loaded {len(all_tickers)} tickers. Remaining: {len(tickers_to_process)}")
     if not tickers_to_process:
-        print("🎉 All tasks completed.")
+        print("All tasks completed")
         return
 
     counters = {
-        'total_count': len(processed_tickers), 
+        'total_count': len(processed_tickers),
         'success_count': 0,
         'skipped_count': 0,
-        'lock': asyncio.Lock()
+        'lock': asyncio.Lock(),
     }
     initial_processed_count = len(processed_tickers)
-    
+
     async with async_playwright() as p:
-        user_data_dir = PROJECT_ROOT / "tmp/sa_session" 
+        user_data_dir = PROJECT_ROOT / "tmp/sa_session"
         context = await p.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
             headless=True,
             args=["--start-maximized"],
-            accept_downloads=True 
+            accept_downloads=True,
         )
 
         page = await context.new_page()
         if not await login_to_sa(page):
             await context.close()
             return
-        await page.close() 
+        await page.close()
 
-        tasks = []
-        for ticker in tickers_to_process:
-            tasks.append(worker(ticker, context, TODAY_DIR, all_tickers, counters))
-        
+        tasks = [worker(ticker, context, today_dir, all_tickers, counters) for ticker in tickers_to_process]
         for i in range(0, len(tasks), MAX_CONCURRENT_TICKERS):
             batch = tasks[i:i + MAX_CONCURRENT_TICKERS]
             await asyncio.gather(*batch)
@@ -252,7 +227,8 @@ async def main():
     final_success_count = initial_processed_count + counters['success_count']
     final_skipped_count = counters['skipped_count']
     generate_report(BASE_OUTPUT_DIR, start_time, len(all_tickers), final_success_count, final_skipped_count)
-    print("\n--- 🏁 ALL OPERATIONS COMPLETED ---")
+    print("Completed")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
